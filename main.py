@@ -118,18 +118,6 @@ def mother_schedule(mother_id: int, db: Session = Depends(get_db)):
     return antenatal_schedule(mother.lmp_date)
 
 
-@app.get("/mothers/{mother_id}/appointments", response_model=list[AppointmentOut])
-def mother_appointments(mother_id: int, db: Session = Depends(get_db)):
-    mother = db.get(models.Mother, mother_id)
-    if mother is None:
-        raise HTTPException(status_code=404, detail="Mother not found")
-    return (
-        db.query(models.Appointment)
-        .filter(models.Appointment.mother_id == mother_id)
-        .order_by(models.Appointment.due_date)
-        .all()
-    )
-
 
 @app.post("/appointments/{appointment_id}/done", response_model=AppointmentOut)
 def mark_done(appointment_id: int, db: Session = Depends(get_db)):
