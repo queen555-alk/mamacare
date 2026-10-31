@@ -29,7 +29,7 @@ class SourceOut(BaseModel):
 
 
 class AskOut(BaseModel):
-    kind: str  # answer | emergency | crisis | refused | no_source
+    kind: str  # answer | emergency | crisis | refused | concern | no_source
     answer: str
     sources: list[SourceOut]
 

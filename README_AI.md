@@ -26,6 +26,7 @@ question
    |
    v
 3. Is the best note relevant enough?  no -> "I don't have a reliable source"
+                                          (or, if a symptom was described: "see a health worker today")
    |  yes
    v
 4. Answer from the note(s) with their sources
@@ -67,8 +68,14 @@ measures the retrieval and the safety rules.
   *giving birth*?" fails because the note says "health worker" and "delivery".
 - **A single shared word can cause a wrong match.** "How do I treat a snake bite?"
   returned the malaria note because both contain "treat".
-- Emergency detection uses keyword patterns. It is deliberately over-cautious, but it
-  can miss unusual phrasing, and it only understands English.
+- Emergency and crisis detection use keyword patterns. They are deliberately
+  over-cautious (for example, any mention of bleeding, or of not feeling the baby move,
+  triggers the emergency reply even when the context is harmless). They can still miss
+  unusual phrasing, and they only understand English.
+- Regression tests for earlier misses are in `tests/test_safety_rules.py`. The patterns
+  have **not** been reviewed by a clinician or by Pidgin/Hausa/Yoruba/Igbo speakers.
+- An LLM answer containing a dose or a diagnosis-style sentence is discarded and the
+  guidance note is returned instead.
 
 ### Future work
 
@@ -90,7 +97,7 @@ Open `http://127.0.0.1:8001/docs`, then use **POST /assistant/ask**:
 {"question": "How many antenatal visits should I have?"}
 ```
 
-The response contains `kind` (`answer`, `emergency`, `crisis`, `refused` or `no_source`),
+The response contains `kind` (`answer`, `emergency`, `crisis`, `refused`, `concern` or `no_source`),
 the `answer`, and the `sources` used.
 
 ### Optional: let an LLM rewrite the answers
