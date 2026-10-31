@@ -1,6 +1,8 @@
 from datetime import date, timedelta
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.orm import Session
 
@@ -67,8 +69,16 @@ def antenatal_schedule(lmp: date) -> list:
     return visits
 
 
-@app.get("/")
+WEB_DIR = Path(__file__).parent / "web"
+
+
+@app.get("/", include_in_schema=False)
 def home():
+    return FileResponse(WEB_DIR / "index.html")
+
+
+@app.get("/health")
+def health():
     return {"message": "MamaCare is running"}
 
 
@@ -108,6 +118,14 @@ def register_mother(data: MotherCreate, db: Session = Depends(get_db)):
 @app.get("/mothers", response_model=list[MotherOut])
 def list_mothers(db: Session = Depends(get_db)):
     return db.query(models.Mother).all()
+
+
+@app.get("/mothers/{mother_id}", response_model=MotherOut)
+def get_mother(mother_id: int, db: Session = Depends(get_db)):
+    mother = db.get(models.Mother, mother_id)
+    if mother is None:
+        raise HTTPException(status_code=404, detail="Mother not found")
+    return mother
 
 
 @app.get("/mothers/{mother_id}/schedule")

@@ -84,6 +84,17 @@ measures the retrieval and the safety rules.
 - Support for Pidgin, Hausa, Yoruba and Igbo.
 - Clinician review of every note, and a larger evaluation set written with a clinician.
 
+## Web interface
+
+`web/index.html` is a phone-first single page served by `main.py` at `/` (the old JSON
+message is now at `/health`). Start the app, then open `http://127.0.0.1:8001/` on a
+phone or in a browser. Tabs: **Home** (sign-up, week and trimester ring, due date, next
+visit), **Visits** (mark visits done, overdue flags), **Ask** (the assistant, with a red
+"Call 112" card for emergency and crisis replies), **Due date** (calculator that needs no
+sign-up). The profile is remembered in the phone's browser; questions are never stored.
+The interface deliberately does not use `GET /mothers` or `GET /missed`, which return
+every mother's name and phone number, until login exists.
+
 ## Run it
 
 ```bash

@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4a2c6b">
+<title>MamaCare</title>
+<style>
+:root {
+  --ink: #2b1d3f;
+  --muted: #6a6077;
+  --plum: #4a2c6b;
+  --plum-soft: #e9e0f2;
+  --leaf: #2a7a5f;
+  --leaf-soft: #dcefe7;
+  --amber: #8a5a00;
+  --amber-soft: #fbecc8;
+  --danger: #b4233a;
+  --danger-soft: #fbe3e7;
+  --bg: #f5f2f8;
+  --surface: #ffffff;
+  --line: #e1dbe8;
+  --track: #e3dcec;
+  --radius: 16px;
+  --nav-h: 64px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #f0eaf7; --muted: #b3a8c2; --plum: #cdb3ef; --plum-soft: #3a2a52;
+    --leaf: #7fd1ae; --leaf-soft: #1e3a30; --amber: #f2c561; --amber-soft: #43330f;
+    --danger: #ff8d9d; --danger-soft: #4a1f29; --bg: #17111f; --surface: #221a2e;
+    --line: #3a2f49; --track: #3a2f49;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.5 "Avenir Next", "Segoe UI", Roboto, "Helvetica Neue", system-ui, sans-serif;
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);
+}
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--plum); outline-offset: 2px; border-radius: 8px; }
+
+header {
+  position: sticky; top: 0; z-index: 5; background: var(--plum); color: #fff;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+header h1 { margin: 0; font-size: 1.25rem; letter-spacing: .01em; }
+.sos {
+  background: #fff; color: var(--danger); font-weight: 700; text-decoration: none;
+  padding: 8px 14px; border-radius: 999px; min-height: 40px; display: inline-flex; align-items: center;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) header { background: #2b1d3f; } }
+
+main { max-width: 640px; margin: 0 auto; padding: 16px; }
+h2 { font-size: 1.35rem; margin: 8px 0 12px; }
+h3 { font-size: 1.05rem; margin: 0 0 6px; }
+p { margin: 0 0 10px; }
+.muted { color: var(--muted); }
+.small { font-size: .875rem; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+.stack > * + * { margin-top: 12px; }
+
+label { display: block; font-weight: 600; margin-bottom: 4px; }
+input[type=text], input[type=tel], input[type=date] {
+  width: 100%; min-height: 48px; padding: 10px 12px; border-radius: 12px;
+  border: 1.5px solid var(--line); background: var(--surface);
+}
+.hint { font-size: .85rem; color: var(--muted); margin-top: 4px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 0 20px; border-radius: 12px; border: 0; cursor: pointer;
+  background: var(--plum); color: #fff; font-weight: 700; text-decoration: none;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn { color: #1c1226; } }
+.btn.block { width: 100%; }
+.btn.ghost { background: transparent; color: var(--plum); border: 1.5px solid var(--plum); }
+.btn.small { min-height: 40px; padding: 0 14px; font-size: .9rem; }
+.btn[disabled] { opacity: .55; cursor: default; }
+.linkbtn { background: none; border: 0; color: var(--plum); text-decoration: underline; padding: 8px 0; cursor: pointer; min-height: 40px; }
+
+.alert { border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.alert.err { background: var(--danger-soft); color: var(--danger); }
+.alert.warn { background: var(--amber-soft); color: var(--amber); }
+.alert.ok { background: var(--leaf-soft); color: var(--leaf); }
+
+/* the one memorable element: the pregnancy ring */
+.hero { text-align: center; padding: 20px 16px 18px; }
+.ring { width: 220px; height: 220px; margin: 0 auto; position: relative; }
+.ring svg { width: 100%; height: 100%; }
+.ring .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ring .weeks { font-size: 3.4rem; line-height: 1; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ring .unit { color: var(--muted); font-size: .95rem; margin-top: 4px; }
+.legend { display: flex; justify-content: center; gap: 14px; margin-top: 10px; font-size: .8rem; color: var(--muted); flex-wrap: wrap; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; background: var(--c); }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; text-align: left; }
+.fact { background: var(--bg); border-radius: 12px; padding: 10px 12px; }
+.fact b { display: block; font-size: 1.05rem; }
+.fact span { font-size: .8rem; color: var(--muted); }
+
+.visit { display: flex; gap: 12px; align-items: flex-start; padding: 14px 0; border-top: 1px solid var(--line); }
+.visit:first-child { border-top: 0; }
+.dot { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--plum-soft); color: var(--plum); }
+.visit.done .dot { background: var(--leaf-soft); color: var(--leaf); }
+.visit.late .dot { background: var(--danger-soft); color: var(--danger); }
+.visit .body { flex: 1; min-width: 0; }
+.tag { display: inline-block; font-size: .78rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+.tag.done { background: var(--leaf-soft); color: var(--leaf); }
+.tag.late { background: var(--danger-soft); color: var(--danger); }
+.tag.soon { background: var(--amber-soft); color: var(--amber); }
+
+/* chat */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.chip { border: 1.5px solid var(--line); background: var(--surface); border-radius: 999px; padding: 8px 14px; min-height: 40px; cursor: pointer; }
+.msg { margin-bottom: 12px; }
+.me { margin-left: 18%; background: var(--plum); color: #fff; border-radius: 16px 16px 4px 16px; padding: 10px 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .me { color: #1c1226; } }
+.reply { background: var(--surface); border: 1px solid var(--line); border-radius: 16px 16px 16px 4px; padding: 12px 14px; margin-right: 6%; }
+.reply .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.reply.emergency, .reply.crisis { background: var(--danger-soft); border: 2px solid var(--danger); }
+.reply.emergency h3, .reply.crisis h3 { color: var(--danger); font-size: 1.2rem; }
+.reply.concern { background: var(--amber-soft); border-color: var(--amber); }
+.reply .btn { margin-top: 10px; background: var(--danger); color: #fff; }
+.src { margin-top: 10px; font-size: .8rem; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; }
+.ask { position: sticky; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); background: var(--bg); padding: 10px 0; display: flex; gap: 8px; }
+.ask input { flex: 1; }
+.typing { color: var(--muted); font-style: italic; }
+
+nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom); background: var(--surface); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(4, 1fr);
+}
+nav button { background: none; border: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--muted); font-size: .78rem; cursor: pointer; }
+nav button svg { width: 24px; height: 24px; }
+nav button[aria-current="page"] { color: var(--plum); font-weight: 700; }
+nav button[aria-current="page"]::before { content: ""; position: absolute; top: 0; width: 36px; height: 3px; background: var(--plum); border-radius: 0 0 3px 3px; }
+nav button { position: relative; }
+
+.sourcelist { margin: 8px 0 0; padding-left: 18px; }
+@media (prefers-reduced-motion: no-preference) {
+  .ring .prog { transition: stroke-dasharray .8s ease; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>MamaCare</h1>
+  <a class="sos" href="tel:112" aria-label="Call emergency number 112">Emergency 112</a>
+</header>
+<main id="view" aria-live="polite"></main>
+<nav aria-label="Main">
+  <button data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</button>
+  <button data-tab="visits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Visits</button>
+  <button data-tab="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Ask</button>
+  <button data-tab="tools"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Due date</button>
+</nav>
+
+<script>
+"use strict";
+
+/* ---------- small helpers ---------- */
+const $view = document.getElementById("view");
+const SAVED_KEY = "mamacare.motherId";
+const TRIMESTERS = [
+  { name: "First trimester", from: 0, to: 91, color: "#2a7a5f" },
+  { name: "Second trimester", from: 91, to: 189, color: "#4a2c6b" },
+  { name: "Third trimester", from: 189, to: 280, color: "#c0652b" },
+];
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v == null) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, "");
+    else el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+function svg(tag, attrs) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+function store(fn, fallback) { try { return fn(); } catch { return fallback; } }
+
+const parseDate = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const toISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const startOfToday = () => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); };
+const dayDiff = (a, b) => Math.round((Date.UTC(a.getFullYear(), a.getMonth(), a.getDate()) - Date.UTC(b.getFullYear(), b.getMonth(), b.getDate())) / 86400000);
+const fmt = d => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+
+async function api(path, options) {
+  let res;
+  try {
+    res = await fetch(path, options);
+  } catch {
+    throw new Error("Can't reach MamaCare. Check your internet connection and try again.");
+  }
+  if (!res.ok) {
+    let msg = `Something went wrong (error ${res.status}). Try again.`;
+    try {
+      const body = await res.json();
+      if (typeof body.detail === "string") msg = body.detail;
+      else if (Array.isArray(body.detail) && body.detail.length) {
+        msg = body.detail.map(e => String(e.msg).replace(/^Value error,\s*/, "")).join(" ");
+      }
+    } catch { /* keep default */ }
+    const err = new Error(msg); err.status = res.status; throw err;
+  }
+  return res.json();
+}
+const post = (path, body) => api(path, {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+});
+
+/* ---------- state ---------- */
+const state = {
+  tab: "home",
+  mother: null,        // {id, name, phone, lmp_date, due_date}
+  appts: [],
+  loading: true,
+  loadError: null,
+  chat: [],            // kept in memory only: questions can contain private health details
+  asking: false,
+  notes: null,         // guidance note list for the Ask tab
+  tool: null,          // {lmp, due, visits} or {error}
+};
+
+/* ---------- pregnancy maths ---------- */
+function progress(lmpISO) {
+  const days = dayDiff(startOfToday(), parseDate(lmpISO));
+  return { days, weeks: Math.floor(days / 7), rem: days % 7 };
+}
+function trimesterOf(days) {
+  return TRIMESTERS.find(t => days < t.to) || TRIMESTERS[2];
+}
+
+function ring(days) {
+  const R = 92, C = 2 * Math.PI * R, GAP = 7;
+  const root = svg("svg", { viewBox: "0 0 220 220", role: "img", "aria-label": `Pregnancy progress, ${Math.min(days, 280)} of 280 days` });
+  TRIMESTERS.forEach(t => {
+    const len = (t.to - t.from) / 280 * C - GAP;
+    const rot = -90 + (t.from / 280) * 360 + (GAP / 2 / C) * 360;
+    const base = { cx: 110, cy: 110, r: R, fill: "none", "stroke-width": 16, "stroke-linecap": "round", transform: `rotate(${rot} 110 110)` };
+    root.append(svg("circle", { ...base, stroke: "var(--track)", "stroke-dasharray": `${len} ${C}` }));
+    const filled = Math.max(0, Math.min(days - t.from, t.to - t.from)) / (t.to - t.from) * len;
+    if (filled > 0) root.append(svg("circle", { ...base, class: "prog", stroke: t.color, "stroke-dasharray": `${filled} ${C}` }));
+  });
+  return root;
+}
+
+/* ---------- data loading ---------- */
+async function loadMother() {
+  state.loading = true; state.loadError = null; render();
+  const id = store(() => localStorage.getItem(SAVED_KEY));
+  if (id) {
+    try {
+      state.mother = await api(`/mothers/${encodeURIComponent(id)}`);
+      state.appts = await api(`/mothers/${state.mother.id}/appointments`);
+    } catch (e) {
+      if (e.status === 404) { store(() => localStorage.removeItem(SAVED_KEY)); state.mother = null; }
+      else state.loadError = e.message;
+    }
+  }
+  state.loading = false; render();
+}
+
+/* ---------- views ---------- */
+function errorBox(msg) { return msg ? h("div", { class: "alert err", role: "alert" }, msg) : null; }
+
+function signUpForm() {
+  const today = startOfToday();
+  const error = h("div");
+  const form = h("form", { class: "stack", novalidate: true, onsubmit: async ev => {
+    ev.preventDefault();
+    const btn = form.querySelector("button[type=submit]");
+    const name = form.name.value.trim(), phone = form.phone.value.trim(), lmp = form.lmp.value;
+    error.replaceChildren();
+    if (!name || !phone || !lmp) { error.append(errorBox("Fill in your name, phone number and the first day of your last period.")); return; }
+    if (!/^[+\d][\d\s-]{6,}$/.test(phone)) { error.append(errorBox("Enter a phone number with digits only, for example 0803 000 0000.")); return; }
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      const m = await post("/mothers", { name, phone, lmp_date: lmp });
+      store(() => localStorage.setItem(SAVED_KEY, String(m.id)));
+      await loadMother();
+    } catch (e) {
+      error.append(errorBox(e.message)); btn.disabled = false; btn.textContent = "Start tracking";
+    }
+  }},
+    h("div", {}, h("label", { for: "f-name" }, "Your name"), h("input", { id: "f-name", name: "name", type: "text", autocomplete: "name", required: true })),
+    h("div", {}, h("label", { for: "f-phone" }, "Phone number"), h("input", { id: "f-phone", name: "phone", type: "tel", autocomplete: "tel", inputmode: "tel", required: true })),
+    h("div", {}, h("label", { for: "f-lmp" }, "First day of your last period"),
+      h("input", { id: "f-lmp", name: "lmp", type: "date", required: true, max: toISO(today), min: toISO(addDays(today, -294)) }),
+      h("div", { class: "hint" }, "Your due date and visit dates are worked out from this day.")),
+    error,
+    h("button", { class: "btn block", type: "submit" }, "Start tracking"),
+  );
+  return h("div", { class: "card" },
+    h("h2", {}, "Welcome to MamaCare"),
+    h("p", { class: "muted" }, "Follow your pregnancy week by week, keep track of your antenatal visits, and ask health questions."),
+    form,
+    h("p", { class: "hint", style: "margin-top:14px" }, "No account needed. Your profile is saved on this phone only. Anyone using this phone can see it."),
+  );
+}
+
+function nextVisit() {
+  return state.appts.filter(a => !a.done).sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
+}
+function lateVisits() {
+  const t = startOfToday();
+  return state.appts.filter(a => !a.done && parseDate(a.due_date) < t);
+}
+
+function homeView() {
+  const m = state.mother;
+  const { days, weeks, rem } = progress(m.lmp_date);
+  const tri = trimesterOf(days);
+  const due = parseDate(m.due_date);
+  const toGo = dayDiff(due, startOfToday());
+  const late = lateVisits();
+  const next = nextVisit();
+  const nodes = [];
+
+  if (late.length) nodes.push(h("div", { class: "alert err", role: "alert" },
+    h("b", {}, `${plural(late.length, "visit")} overdue. `), "Go to your health centre as soon as you can. ",
+    h("button", { class: "linkbtn", onclick: () => go("visits") }, "See visits")));
+  if (toGo < 0) nodes.push(h("div", { class: "alert warn" }, `You are ${plural(-toGo, "day")} past your due date. Contact your health worker.`));
+
+  const hero = h("div", { class: "card hero" },
+    h("p", { class: "muted", style: "margin-bottom:12px" }, `Hello, ${m.name}`),
+    h("div", { class: "ring" }, ring(days), h("div", { class: "center" },
+      h("div", { class: "weeks" }, weeks),
+      h("div", { class: "unit" }, rem ? `weeks + ${plural(rem, "day")}` : "weeks"))),
+    h("div", { class: "legend" }, TRIMESTERS.map(t => h("span", { style: `--c:${t.color}` }, t.name.replace(" trimester", "")))),
+    h("div", { class: "facts" },
+      h("div", { class: "fact" }, h("b", {}, tri.name), h("span", {}, "You are here")),
+      h("div", { class: "fact" }, h("b", {}, toGo >= 0 ? plural(toGo, "day") : "Due date passed"), h("span", {}, toGo >= 0 ? "until your due date" : "see message above")),
+      h("div", { class: "fact", style: "grid-column:1/-1" }, h("b", {}, fmt(due)), h("span", {}, "Expected due date. Most babies arrive a little before or after."))),
+  );
+  nodes.push(hero);
+
+  if (next) {
+    const d = dayDiff(parseDate(next.due_date), startOfToday());
+    const when = d < 0 ? `${plural(-d, "day")} ago` : d === 0 ? "today" : `in ${plural(d, "day")}`;
+    nodes.push(h("div", { class: "card" },
+      h("h3", {}, "Next visit"),
+      h("p", {}, `Visit ${next.visit_number} at week ${next.week}`),
+      h("p", { class: "muted" }, `${fmt(parseDate(next.due_date))} (${when})`),
+      h("button", { class: "btn ghost small", onclick: () => go("visits") }, "All visits")));
+  } else if (state.appts.length) {
+    nodes.push(h("div", { class: "alert ok" }, "All your listed visits are done. Well done."));
+  }
+
+  nodes.push(h("div", { class: "card" },
+    h("h3", {}, "Know the danger signs"),
+    h("p", { class: "muted" }, "Some symptoms need a health facility straight away. Read them before you need them."),
+    h("button", { class: "btn small", onclick: () => { go("ask"); ask("What are the danger signs during pregnancy?"); } }, "Show danger signs")));
+
+  nodes.push(h("div", { style: "text-align:center" },
+    h("button", { class: "linkbtn", onclick: () => {
+      if (confirm("Remove this profile from this phone? Your records stay saved on the MamaCare server.")) {
+        store(() => localStorage.removeItem(SAVED_KEY)); state.mother = null; state.appts = []; state.chat = []; render();
+      }
+    }}, `Not ${m.name}? Use a different profile`)));
+  return nodes;
+}
+
+function visitsView() {
+  const m = state.mother;
+  const t = startOfToday();
+  const listed = new Set(state.appts.map(a => a.week));
+  const earlier = [12, 20, 26, 30, 34, 36, 38, 40].filter(w => !listed.has(w) && addDays(parseDate(m.lmp_date), w * 7) < t);
+  const nodes = [h("h2", {}, "Antenatal visits"),
+    h("p", { class: "muted" }, "The WHO recommends eight visits. Tap “Mark as done” after each one.")];
+  if (earlier.length) nodes.push(h("div", { class: "alert warn" },
+    `Visits at ${earlier.map(w => `${w} weeks`).join(", ")} fell before you signed up, so they are not listed. If you have not had your first visit yet, go as soon as you can.`));
+
+  const rows = state.appts.slice().sort((a, b) => a.due_date.localeCompare(b.due_date)).map(a => {
+    const d = parseDate(a.due_date), diff = dayDiff(d, t);
+    const late = !a.done && diff < 0, soon = !a.done && diff >= 0 && diff <= 14;
+    const status = a.done ? h("span", { class: "tag done" }, "Done") : late ? h("span", { class: "tag late" }, "Overdue") : soon ? h("span", { class: "tag soon" }, "Soon") : null;
+    const detail = a.done ? `Done on ${fmt(parseDate(a.done_on))}` : late ? `${plural(-diff, "day")} overdue` : diff === 0 ? "Today" : `In ${plural(diff, "day")}`;
+    return h("div", { class: `visit ${a.done ? "done" : late ? "late" : ""}` },
+      h("div", { class: "dot", "aria-hidden": "true" }, a.done ? "✓" : a.visit_number),
+      h("div", { class: "body" },
+        h("b", {}, `Visit ${a.visit_number}, week ${a.week}`), status,
+        h("div", { class: "muted small" }, fmt(d)),
+        h("div", { class: late ? "small" : "muted small", style: late ? "color:var(--danger);font-weight:600" : "" }, detail),
+        a.done ? null : h("button", { class: "btn small", style: "margin-top:8px", onclick: async ev => {
+          if (!confirm(`Mark visit ${a.visit_number} as done today? You can't undo this here.`)) return;
+          ev.target.disabled = true;
+          try { await post(`/appointments/${a.id}/done`, {}); state.appts = await api(`/mothers/${m.id}/appointments`); render(); }
+          catch (e) { ev.target.disabled = false; alert(e.message); }
+        }}, "Mark as done")));
+  });
+  nodes.push(h("div", { class: "card" }, rows.length ? rows : h("p", { class: "muted" }, "No visits to show. All earlier visits fell before you signed up.")));
+  return nodes;
+}
+
+/* assistant */
+const TITLES = {
+  emergency: "Go to a health facility now",
+  crisis: "Please reach out today",
+  refused: "I can't help with that one",
+  concern: "Please speak to a health worker today",
+  no_source: "I don't have a note on that",
+};
+const SUGGESTIONS = [
+  "What are the danger signs during pregnancy?",
+  "How many antenatal visits should I have?",
+  "What foods should I eat when pregnant?",
+  "How should I prepare for delivery?",
+];
+
+async function ask(question) {
+  question = question.trim();
+  if (question.length < 3 || state.asking) return;
+  state.chat.push({ role: "me", text: question });
+  state.asking = true; render(); scrollChat();
+  try {
+    state.chat.push({ role: "bot", ...(await post("/assistant/ask", { question: question.slice(0, 500) })) });
+  } catch (e) {
+    state.chat.push({ role: "bot", kind: "error", answer: e.message, sources: [] });
+  }
+  state.asking = false; render(); scrollChat();
+}
+function scrollChat() { requestAnimationFrame(() => window.scrollTo({ top: document.body.scrollHeight })); }
+
+function replyView(r) {
+  const urgent = r.kind === "emergency" || r.kind === "crisis";
+  const box = h("div", { class: `reply ${r.kind}` },
+    TITLES[r.kind] ? h("h3", {}, TITLES[r.kind]) : null,
+    h("div", { class: "text" }, r.answer),
+    urgent ? h("a", { class: "btn block", href: "tel:112" }, "Call 112") : null,
+    r.sources && r.sources.length ? h("div", { class: "src" }, "From our guidance notes: ", r.sources.map(s => s.title).join("; ")) : null,
+  );
+  if (r.kind === "error") box.className = "reply";
+  return box;
+}
+
+function askView() {
+  const nodes = [h("h2", {}, "Ask a health question"),
+    h("p", { class: "muted small" }, "Answers come only from our guidance notes, which are drafts not yet reviewed by a clinician. This is not medical advice and it can't diagnose or suggest medicines. In an emergency, call 112 or go to a health facility. Your questions are not saved.")];
+  if (!state.chat.length) nodes.push(h("div", { class: "chips" }, SUGGESTIONS.map(q => h("button", { class: "chip", onclick: () => ask(q) }, q))));
+  state.chat.forEach(c => nodes.push(h("div", { class: "msg" }, c.role === "me" ? h("div", { class: "me" }, c.text) : replyView(c))));
+  if (state.asking) nodes.push(h("div", { class: "msg typing" }, "Looking in the guidance notes…"));
+
+  const input = h("input", { type: "text", id: "q", maxlength: 500, placeholder: "Type your question", "aria-label": "Your question", autocomplete: "off", enterkeyhint: "send" });
+  nodes.push(h("form", { class: "ask", onsubmit: ev => { ev.preventDefault(); const v = input.value; input.value = ""; ask(v); } },
+    input, h("button", { class: "btn", type: "submit", disabled: state.asking }, "Send")));
+
+  nodes.push(h("details", { class: "card", ontoggle: loadNotes },
+    h("summary", {}, "What can I ask about?"),
+    h("div", { id: "notes" }, state.notes ? noteList() : h("p", { class: "muted small" }, "Loading…"))));
+  return nodes;
+}
+function noteList() {
+  return h("ul", { class: "sourcelist small" }, state.notes.map(n => h("li", {}, h("b", {}, n.title), h("div", { class: "muted" }, n.source))));
+}
+async function loadNotes(ev) {
+  if (!ev.target.open || state.notes) return;
+  try { state.notes = await api("/assistant/sources"); }
+  catch (e) { document.getElementById("notes")?.replaceChildren(h("p", { class: "muted small" }, e.message)); return; }
+  document.getElementById("notes")?.replaceChildren(noteList());
+}
+
+/* due-date tool */
+function toolsView() {
+  const today = startOfToday();
+  const res = h("div");
+  const input = h("input", { id: "t-lmp", type: "date", max: toISO(today), min: toISO(addDays(today, -294)), required: true, value: state.tool?.lmp || "" });
+  const draw = () => {
+    res.replaceChildren();
+    const t = state.tool;
+    if (!t) return;
+    if (t.error) { res.append(errorBox(t.error)); return; }
+    res.append(h("div", { class: "card", style: "margin-top:14px" },
+      h("h3", {}, "Expected due date"), h("p", { style: "font-size:1.3rem;font-weight:800;margin-bottom:4px" }, fmt(parseDate(t.due))),
+      h("p", { class: "muted small" }, "Counted as 280 days (40 weeks) from the first day of your last period. An early scan can give a more accurate date."),
+      h("h3", { style: "margin-top:14px" }, "Recommended antenatal visits"),
+      t.visits.map(v => h("div", { class: "visit" }, h("div", { class: "dot", "aria-hidden": "true" }, v.visit),
+        h("div", { class: "body" }, h("b", {}, `Week ${v.week}`), h("div", { class: "muted small" }, fmt(parseDate(v.date))))))));
+  };
+  const form = h("form", { class: "stack", onsubmit: async ev => {
+    ev.preventDefault();
+    const lmp = input.value;
+    if (!lmp) { state.tool = { error: "Choose the first day of your last period." }; draw(); return; }
+    const diff = dayDiff(today, parseDate(lmp));
+    if (diff < 0) { state.tool = { lmp, error: "That date is in the future. Choose the first day of your last period." }; draw(); return; }
+    if (diff > 294) { state.tool = { lmp, error: "That date is more than 42 weeks ago. Please check it." }; draw(); return; }
+    try {
+      const [d, v] = await Promise.all([api(`/due-date?lmp=${lmp}`), api(`/antenatal-schedule?lmp=${lmp}`)]);
+      state.tool = { lmp, due: d.due_date, visits: v };
+    } catch (e) { state.tool = { lmp, error: e.message }; }
+    draw();
+  }},
+    h("div", {}, h("label", { for: "t-lmp" }, "First day of your last period"), input),
+    h("button", { class: "btn block", type: "submit" }, "Work out my dates"));
+  draw();
+  return [h("h2", {}, "Due date calculator"), h("p", { class: "muted" }, "Works without signing up. Nothing is saved."), h("div", { class: "card" }, form), res];
+}
+
+/* ---------- shell ---------- */
+function go(tab) { state.tab = tab; render(); window.scrollTo({ top: 0 }); }
+
+function render() {
+  document.querySelectorAll("nav button").forEach(b => {
+    if (b.dataset.tab === state.tab) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
+  let nodes;
+  if (state.tab === "ask") nodes = askView();
+  else if (state.tab === "tools") nodes = toolsView();
+  else if (state.loading) nodes = [h("p", { class: "muted" }, "Loading…")];
+  else if (state.loadError) nodes = [errorBox(state.loadError), h("button", { class: "btn", onclick: loadMother }, "Try again")];
+  else if (!state.mother) nodes = state.tab === "visits"
+    ? [h("h2", {}, "Antenatal visits"), h("p", { class: "muted" }, "Sign up on the Home tab to see your visit dates."), h("button", { class: "btn", onclick: () => go("home") }, "Go to Home")]
+    : [signUpForm()];
+  else nodes = state.tab === "visits" ? visitsView() : homeView();
+  const keep = document.activeElement && document.activeElement.id === "q" ? document.activeElement.value : null;
+  $view.replaceChildren(...nodes);
+  if (keep !== null) { const q = document.getElementById("q"); if (q) { q.value = keep; q.focus(); } }
+}
+
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => go(b.dataset.tab)));
+loadMother();
+</script>
+</body>
+</html>
