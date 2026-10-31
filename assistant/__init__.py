@@ -3,8 +3,10 @@
 Flow for every question:
   1. Safety rules (crisis, emergency, diagnosis/medicine requests): fixed replies.
   2. Retrieval: find the best guidance notes.
-  3. If nothing matches well enough: say "I don't have a reliable source".
+  3. If nothing matches well enough: say "I don't have a reliable source", or,
+     if the person describes a symptom, tell them to see a health worker today.
   4. Otherwise answer from the notes (optionally rewritten by an LLM), with sources.
+     An LLM answer that contains a dose or sounds like a diagnosis is discarded.
 """
 
 import logging
@@ -12,7 +14,7 @@ from pathlib import Path
 
 from . import safety
 from .llm import make_llm
-from .retrieval import BM25Index, load_documents
+from .retrieval import BM25Index, load_documents, tokenize
 
 log = logging.getLogger("mamacare.assistant")
 
@@ -41,6 +43,12 @@ class Assistant:
     def sources(self) -> list[dict]:
         return [self._source(d) for d in self.docs]
 
+    @staticmethod
+    def _mentions_any(doc, terms: set[str]) -> bool:
+        # same synonym/stem rules as the search, so "swollen" matches "swelling"
+        doc_tokens = set(tokenize(doc.title + " " + doc.text))
+        return any(tok in doc_tokens for t in terms for tok in tokenize(t))
+
     def _source(self, doc) -> dict:
         return {"id": doc.id, "title": doc.title, "source": doc.source}
 
@@ -59,8 +67,15 @@ class Assistant:
         if safety.needs_refusal(question):
             return {"kind": "refused", "answer": safety.REFUSAL_MESSAGE, "sources": []}
 
+        symptomatic = safety.mentions_symptom(question)
         hits = [(d, s) for d, s in self.retrieve(question, 3) if s >= self.min_score]
+        if symptomatic:
+            # A personal symptom must not be answered by a note that never mentions it.
+            terms = {t.lower() for t in safety.symptom_terms(question)}
+            hits = [(d, s) for d, s in hits if self._mentions_any(d, terms)]
         if not hits:
+            if symptomatic:
+                return {"kind": "concern", "answer": safety.CONCERN_MESSAGE, "sources": []}
             return {"kind": "no_source", "answer": safety.NO_SOURCE_MESSAGE, "sources": []}
 
         best_doc, best_score = hits[0]
@@ -70,6 +85,9 @@ class Assistant:
         if self.llm is not None:
             try:
                 text = self.llm(question, [d.text for d in used]) or None
+                if text and safety.unsafe_llm_text(text):
+                    log.warning("LLM answer rejected by safety check; using the note")
+                    text = None
             except Exception:  # network, quota, anything: fall back safely
                 log.exception("LLM call failed; using the guidance note directly")
         if text is None:
