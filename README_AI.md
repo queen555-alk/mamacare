@@ -91,9 +91,36 @@ message is now at `/health`). Start the app, then open `http://127.0.0.1:8001/` 
 phone or in a browser. Tabs: **Home** (sign-up, week and trimester ring, due date, next
 visit), **Visits** (mark visits done, overdue flags), **Ask** (the assistant, with a red
 "Call 112" card for emergency and crisis replies), **Due date** (calculator that needs no
-sign-up). The profile is remembered in the phone's browser; questions are never stored.
-The interface deliberately does not use `GET /mothers` or `GET /missed`, which return
-every mother's name and phone number, until login exists.
+sign-up). From week 28 the Home tab also shows a **Get ready for the birth** checklist. Its seven
+items come straight from the "Preparing for delivery" guidance note; ticks are saved on the
+phone only and erased when the mother deletes her data.
+
+Mothers create a profile with a phone number and a 6-digit PIN and stay signed in on
+that phone for 30 days. Questions to the assistant are never stored.
+
+## Sign-in and privacy
+
+- `POST /auth/register`, `POST /auth/login`, `POST /auth/logout` (see `/docs`). PINs are
+  stored only as salted scrypt hashes; session tokens only as SHA-256 hashes.
+- A mother can read, change or delete **only her own** records (`DELETE /mothers/{id}`
+  erases her profile, visits and sign-in details).
+- 5 wrong PINs lock that phone number for 15 minutes. Sign-in attempts are also limited
+  per IP address.
+- `GET /mothers` and `GET /missed` list everyone's names and phone numbers, so they are
+  **health-worker only**. Set a long random key before starting the server and send it as
+  the `X-Staff-Key` header:
+
+  ```bash
+  export MAMACARE_STAFF_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+  ```
+
+  If the variable is not set, those routes are switched off.
+- The assistant is limited to 30 questions a minute per IP (`ASSISTANT_RATE_LIMIT`).
+  Emergency and crisis messages are never limited.
+- The old open `POST /mothers` route was removed. Profiles created before sign-in existed
+  have no PIN, so mothers cannot sign in to them; health workers can still read them.
+- Not done yet: PIN reset (needs SMS), HTTPS (put the app behind a TLS proxy before real
+  use), and a clinician/legal review of the privacy approach under Nigeria's NDPA.
 
 ## Run it
 

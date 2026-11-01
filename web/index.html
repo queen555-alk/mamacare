@@ -65,10 +65,11 @@ p { margin: 0 0 10px; }
 .stack > * + * { margin-top: 12px; }
 
 label { display: block; font-weight: 600; margin-bottom: 4px; }
-input[type=text], input[type=tel], input[type=date] {
+input[type=text], input[type=tel], input[type=date], input[type=password] {
   width: 100%; min-height: 48px; padding: 10px 12px; border-radius: 12px;
   border: 1.5px solid var(--line); background: var(--surface);
 }
+input[type=password] { letter-spacing: .3em; }
 .hint { font-size: .85rem; color: var(--muted); margin-top: 4px; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -141,6 +142,13 @@ nav button[aria-current="page"]::before { content: ""; position: absolute; top: 
 nav button { position: relative; }
 
 .sourcelist { margin: 8px 0 0; padding-left: 18px; }
+.check { display: flex; gap: 12px; align-items: center; min-height: 48px; padding: 6px 0; border-top: 1px solid var(--line); font-weight: 400; margin: 0; cursor: pointer; }
+.check:first-of-type { border-top: 0; }
+.check input { width: 24px; height: 24px; flex: none; accent-color: var(--plum); }
+.check input:checked + span { color: var(--muted); text-decoration: line-through; }
+.meter { height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; margin: 8px 0 10px; }
+.meter i { display: block; height: 100%; background: var(--leaf); }
+@media (prefers-reduced-motion: no-preference) { .meter i { transition: width .3s ease; } }
 @media (prefers-reduced-motion: no-preference) {
   .ring .prog { transition: stroke-dasharray .8s ease; }
 }
@@ -164,7 +172,25 @@ nav button { position: relative; }
 
 /* ---------- small helpers ---------- */
 const $view = document.getElementById("view");
-const SAVED_KEY = "mamacare.motherId";
+const SAVED_KEY = "mamacare.session";
+const getSession = () => store(() => JSON.parse(localStorage.getItem(SAVED_KEY)), null);
+const setSession = (id, token) => store(() => localStorage.setItem(SAVED_KEY, JSON.stringify({ id, token })));
+const clearSession = () => store(() => localStorage.removeItem(SAVED_KEY));
+
+/* Birth-preparation checklist. Items come from the "Preparing for delivery" guidance
+   note. Ticks are kept on this phone only, one list per mother. */
+const PREP_ITEMS = [
+  { id: "where", text: "Decide where you will deliver, ideally a health facility with a trained birth attendant" },
+  { id: "transport", text: "Arrange transport to the facility" },
+  { id: "money", text: "Put some money aside" },
+  { id: "companion", text: "Choose a companion to go with you" },
+  { id: "bag", text: "Pack a bag with clothes and a wrapper" },
+  { id: "card", text: "Put your antenatal card in the bag" },
+  { id: "signs", text: "Learn the signs of labour" },
+];
+const prepKey = id => `mamacare.prep.${id}`;
+const getPrep = id => store(() => JSON.parse(localStorage.getItem(prepKey(id))) || [], []);
+const setPrep = (id, ids) => store(() => localStorage.setItem(prepKey(id), JSON.stringify(ids)));
 const TRIMESTERS = [
   { name: "First trimester", from: 0, to: 91, color: "#2a7a5f" },
   { name: "Second trimester", from: 91, to: 189, color: "#4a2c6b" },
@@ -201,10 +227,13 @@ const fmt = d => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 
-async function api(path, options) {
+async function api(path, options = {}) {
   let res;
+  const sess = getSession();
+  const headers = { ...(options.headers || {}) };
+  if (sess && sess.token) headers.Authorization = `Bearer ${sess.token}`;
   try {
-    res = await fetch(path, options);
+    res = await fetch(path, { ...options, headers });
   } catch {
     throw new Error("Can't reach MamaCare. Check your internet connection and try again.");
   }
@@ -217,6 +246,11 @@ async function api(path, options) {
         msg = body.detail.map(e => String(e.msg).replace(/^Value error,\s*/, "")).join(" ");
       }
     } catch { /* keep default */ }
+    if (res.status === 401 && sess && !path.startsWith("/auth/")) {
+      clearSession(); state.mother = null; state.appts = []; state.chat = [];
+      state.notice = "Your session has ended. Sign in again."; state.authMode = "signin";
+      queueMicrotask(render);
+    }
     const err = new Error(msg); err.status = res.status; throw err;
   }
   return res.json();
@@ -236,6 +270,8 @@ const state = {
   asking: false,
   notes: null,         // guidance note list for the Ask tab
   tool: null,          // {lmp, due, visits} or {error}
+  authMode: "signup",  // "signup" | "signin"
+  notice: null,
 };
 
 /* ---------- pregnancy maths ---------- */
@@ -264,13 +300,13 @@ function ring(days) {
 /* ---------- data loading ---------- */
 async function loadMother() {
   state.loading = true; state.loadError = null; render();
-  const id = store(() => localStorage.getItem(SAVED_KEY));
-  if (id) {
+  const sess = getSession();
+  if (sess && sess.id && sess.token) {
     try {
-      state.mother = await api(`/mothers/${encodeURIComponent(id)}`);
+      state.mother = await api(`/mothers/${encodeURIComponent(sess.id)}`);
       state.appts = await api(`/mothers/${state.mother.id}/appointments`);
     } catch (e) {
-      if (e.status === 404) { store(() => localStorage.removeItem(SAVED_KEY)); state.mother = null; }
+      if ([401, 403, 404].includes(e.status)) { clearSession(); state.mother = null; state.appts = []; }
       else state.loadError = e.message;
     }
   }
@@ -280,38 +316,62 @@ async function loadMother() {
 /* ---------- views ---------- */
 function errorBox(msg) { return msg ? h("div", { class: "alert err", role: "alert" }, msg) : null; }
 
-function signUpForm() {
+function authForm() {
+  const signup = state.authMode === "signup";
   const today = startOfToday();
   const error = h("div");
+  const field = (id, label, input, hint) => h("div", {}, h("label", { for: id }, label), input, hint ? h("div", { class: "hint" }, hint) : null);
+  const text = (id, name, type, extra = {}) => h("input", { id, name, type, required: true, ...extra });
   const form = h("form", { class: "stack", novalidate: true, onsubmit: async ev => {
     ev.preventDefault();
     const btn = form.querySelector("button[type=submit]");
-    const name = form.name.value.trim(), phone = form.phone.value.trim(), lmp = form.lmp.value;
+    const v = n => form.elements[n]?.value.trim() ?? "";
+    const label = btn.textContent;
     error.replaceChildren();
-    if (!name || !phone || !lmp) { error.append(errorBox("Fill in your name, phone number and the first day of your last period.")); return; }
-    if (!/^[+\d][\d\s-]{6,}$/.test(phone)) { error.append(errorBox("Enter a phone number with digits only, for example 0803 000 0000.")); return; }
-    btn.disabled = true; btn.textContent = "Saving…";
+    const fail = msg => { error.append(errorBox(msg)); };
+    if (!v("phone") || !v("pin") || (signup && (!v("name") || !v("lmp")))) {
+      return fail(signup ? "Fill in your name, phone number, last period date and a PIN." : "Enter your phone number and PIN.");
+    }
+    if (!/^[+\d][\d\s\-()]{6,}$/.test(v("phone"))) return fail("Enter a phone number with digits only, for example 0803 000 0000.");
+    if (!/^\d{6}$/.test(v("pin"))) return fail("Your PIN is 6 digits.");
+    if (signup && v("pin") !== v("pin2")) return fail("The two PINs are not the same. Type them again.");
+    btn.disabled = true; btn.textContent = signup ? "Creating…" : "Signing in…";
     try {
-      const m = await post("/mothers", { name, phone, lmp_date: lmp });
-      store(() => localStorage.setItem(SAVED_KEY, String(m.id)));
+      const out = signup
+        ? await post("/auth/register", { name: v("name"), phone: v("phone"), lmp_date: v("lmp"), pin: v("pin") })
+        : await post("/auth/login", { phone: v("phone"), pin: v("pin") });
+      setSession(out.mother.id, out.token);
+      state.notice = null; state.chat = [];
       await loadMother();
     } catch (e) {
-      error.append(errorBox(e.message)); btn.disabled = false; btn.textContent = "Start tracking";
+      fail(e.message); btn.disabled = false; btn.textContent = label;
+      if (signup && e.status === 409) state.authMode = "signin";
     }
   }},
-    h("div", {}, h("label", { for: "f-name" }, "Your name"), h("input", { id: "f-name", name: "name", type: "text", autocomplete: "name", required: true })),
-    h("div", {}, h("label", { for: "f-phone" }, "Phone number"), h("input", { id: "f-phone", name: "phone", type: "tel", autocomplete: "tel", inputmode: "tel", required: true })),
-    h("div", {}, h("label", { for: "f-lmp" }, "First day of your last period"),
-      h("input", { id: "f-lmp", name: "lmp", type: "date", required: true, max: toISO(today), min: toISO(addDays(today, -294)) }),
-      h("div", { class: "hint" }, "Your due date and visit dates are worked out from this day.")),
+    signup ? field("f-name", "Your name", text("f-name", "name", "text", { autocomplete: "name" })) : null,
+    field("f-phone", "Phone number", text("f-phone", "phone", "tel", { autocomplete: "tel", inputmode: "tel" })),
+    signup ? field("f-lmp", "First day of your last period",
+      text("f-lmp", "lmp", "date", { max: toISO(today), min: toISO(addDays(today, -294)) }),
+      "Your due date and visit dates are worked out from this day.") : null,
+    field("f-pin", signup ? "Choose a 6-digit PIN" : "Your PIN",
+      text("f-pin", "pin", "password", { inputmode: "numeric", pattern: "[0-9]*", maxlength: 6, autocomplete: signup ? "new-password" : "current-password" }),
+      signup ? "You need this PIN to sign in on another phone. Do not share it. Avoid 123456 or repeated digits." : null),
+    signup ? field("f-pin2", "Type the PIN again", text("f-pin2", "pin2", "password", { inputmode: "numeric", pattern: "[0-9]*", maxlength: 6, autocomplete: "new-password" })) : null,
     error,
-    h("button", { class: "btn block", type: "submit" }, "Start tracking"),
+    h("button", { class: "btn block", type: "submit" }, signup ? "Create my profile" : "Sign in"),
   );
+  const note = state.notice;
   return h("div", { class: "card" },
-    h("h2", {}, "Welcome to MamaCare"),
-    h("p", { class: "muted" }, "Follow your pregnancy week by week, keep track of your antenatal visits, and ask health questions."),
+    note ? h("div", { class: "alert warn", role: "status" }, note) : null,
+    h("h2", {}, signup ? "Welcome to MamaCare" : "Welcome back"),
+    h("p", { class: "muted" }, signup
+      ? "Follow your pregnancy week by week, keep track of your antenatal visits, and ask health questions."
+      : "Sign in with your phone number and PIN to see your pregnancy and visits."),
     form,
-    h("p", { class: "hint", style: "margin-top:14px" }, "No account needed. Your profile is saved on this phone only. Anyone using this phone can see it."),
+    h("div", { style: "text-align:center;margin-top:8px" },
+      h("button", { class: "linkbtn", onclick: () => { state.authMode = signup ? "signin" : "signup"; state.notice = null; render(); } },
+        signup ? "I already have a profile. Sign in" : "New here? Create a profile")),
+    h("p", { class: "hint" }, "Only you and your health worker can see your records. After 5 wrong PINs, sign-in is paused for 15 minutes."),
   );
 }
 
@@ -321,6 +381,29 @@ function nextVisit() {
 function lateVisits() {
   const t = startOfToday();
   return state.appts.filter(a => !a.done && parseDate(a.due_date) < t);
+}
+
+function prepCard(m) {
+  const done = new Set(getPrep(m.id));
+  const total = PREP_ITEMS.length;
+  const status = h("p", { class: "muted small", id: "prep-status", "aria-live": "polite" });
+  const bar = h("i");
+  const refresh = () => {
+    const n = PREP_ITEMS.filter(i => done.has(i.id)).length;
+    status.textContent = n === total ? "All done. Well done." : `${n} of ${total} done`;
+    bar.style.width = `${(n / total) * 100}%`;
+  };
+  const rows = PREP_ITEMS.map(item => h("label", { class: "check" },
+    h("input", { type: "checkbox", checked: done.has(item.id), onchange: ev => {
+      if (ev.target.checked) done.add(item.id); else done.delete(item.id);
+      setPrep(m.id, [...done]); refresh();
+    }}),
+    h("span", {}, item.text)));
+  refresh();
+  return h("div", { class: "card", id: "prep" },
+    h("h3", {}, "Get ready for the birth"),
+    status, h("div", { class: "meter", "aria-hidden": "true" }, bar), rows,
+    h("button", { class: "btn ghost small", style: "margin-top:10px", onclick: () => { go("ask"); ask("How should I prepare for delivery?"); } }, "Read about labour and delivery"));
 }
 
 function homeView() {
@@ -363,17 +446,28 @@ function homeView() {
     nodes.push(h("div", { class: "alert ok" }, "All your listed visits are done. Well done."));
   }
 
+  if (weeks >= 28) nodes.push(prepCard(m));
+
   nodes.push(h("div", { class: "card" },
     h("h3", {}, "Know the danger signs"),
     h("p", { class: "muted" }, "Some symptoms need a health facility straight away. Read them before you need them."),
     h("button", { class: "btn small", onclick: () => { go("ask"); ask("What are the danger signs during pregnancy?"); } }, "Show danger signs")));
 
   nodes.push(h("div", { style: "text-align:center" },
-    h("button", { class: "linkbtn", onclick: () => {
-      if (confirm("Remove this profile from this phone? Your records stay saved on the MamaCare server.")) {
-        store(() => localStorage.removeItem(SAVED_KEY)); state.mother = null; state.appts = []; state.chat = []; render();
-      }
-    }}, `Not ${m.name}? Use a different profile`)));
+    h("button", { class: "linkbtn", onclick: async () => {
+      try { await post("/auth/logout", {}); } catch { /* sign out on this phone regardless */ }
+      clearSession(); state.mother = null; state.appts = []; state.chat = []; state.authMode = "signin"; state.notice = null; render();
+    }}, "Sign out"),
+    h("br"),
+    h("button", { class: "linkbtn", style: "color:var(--danger)", onclick: async () => {
+      if (!confirm("Delete your profile, visits and PIN from MamaCare? This cannot be undone.")) return;
+      try {
+        await api(`/mothers/${m.id}`, { method: "DELETE" });
+        store(() => localStorage.removeItem(prepKey(m.id)));
+        clearSession(); state.mother = null; state.appts = []; state.chat = []; state.authMode = "signup";
+        state.notice = "Your data has been deleted."; render();
+      } catch (e) { alert(e.message); }
+    }}, "Delete my data")));
   return nodes;
 }
 
@@ -526,8 +620,8 @@ function render() {
   else if (state.loading) nodes = [h("p", { class: "muted" }, "Loading…")];
   else if (state.loadError) nodes = [errorBox(state.loadError), h("button", { class: "btn", onclick: loadMother }, "Try again")];
   else if (!state.mother) nodes = state.tab === "visits"
-    ? [h("h2", {}, "Antenatal visits"), h("p", { class: "muted" }, "Sign up on the Home tab to see your visit dates."), h("button", { class: "btn", onclick: () => go("home") }, "Go to Home")]
-    : [signUpForm()];
+    ? [h("h2", {}, "Antenatal visits"), h("p", { class: "muted" }, "Sign in or create a profile on the Home tab to see your visit dates."), h("button", { class: "btn", onclick: () => go("home") }, "Go to Home")]
+    : [authForm()];
   else nodes = state.tab === "visits" ? visitsView() : homeView();
   const keep = document.activeElement && document.activeElement.id === "q" ? document.activeElement.value : null;
   $view.replaceChildren(...nodes);

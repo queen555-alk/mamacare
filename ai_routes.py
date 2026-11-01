@@ -8,14 +8,21 @@ Privacy: questions can contain personal health details, so they are NOT logged
 or stored anywhere by this module.
 """
 
-from fastapi import APIRouter
+import os
+
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from assistant import Assistant
+import auth
+from assistant import Assistant, safety
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
 _assistant = Assistant.default()
+
+# Stops one client from running up the language-model bill. Emergency and crisis
+# messages are NEVER limited: they get a fixed reply and cost nothing.
+_limiter = auth.RateLimiter(limit=int(os.getenv("ASSISTANT_RATE_LIMIT", "30")), window=60)
 
 
 class AskIn(BaseModel):
@@ -35,8 +42,12 @@ class AskOut(BaseModel):
 
 
 @router.post("/ask", response_model=AskOut)
-def ask(body: AskIn):
+def ask(body: AskIn, request: Request):
     """Ask a health-education question. Answers come only from the guidance notes."""
+    urgent = safety.is_crisis(body.question) or safety.is_emergency(body.question)
+    ip = request.client.host if request.client else "unknown"
+    if not urgent and not _limiter.allow(ip):
+        raise HTTPException(status_code=429, detail="You are asking too fast. Wait a minute and try again.")
     return _assistant.ask(body.question)
 
 
