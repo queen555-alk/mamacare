@@ -91,7 +91,17 @@ message is now at `/health`). Start the app, then open `http://127.0.0.1:8001/` 
 phone or in a browser. Tabs: **Home** (sign-up, week and trimester ring, due date, next
 visit), **Visits** (mark visits done, overdue flags), **Ask** (the assistant, with a red
 "Call 112" card for emergency and crisis replies), **Due date** (calculator that needs no
+<<<<<<< HEAD
 sign-up). From week 28 the Home tab also shows a **Get ready for the birth** checklist. Its seven
+=======
+sign-up). The Home tab has a **How are you feeling today?** card: she writes in her own words, we
+keep only the symptoms recognised (never the text), and fixed rules reply with a warning level
+(danger sign: go to a facility now; severe or fever: speak to a health worker today; the same
+symptom on 3 days in a week: mention it at the next visit). Endpoints: `POST` and `GET
+/mothers/{id}/symptoms`. The rules in `assistant/symptoms.py` are drafts for a clinician to review.
+
+From week 28 the Home tab also shows a **Get ready for the birth** checklist. Its seven
+>>>>>>> 3a88354 (api model)
 items come straight from the "Preparing for delivery" guidance note; ticks are saved on the
 phone only and erased when the mother deletes her data.
 
@@ -125,7 +135,7 @@ that phone for 30 days. Questions to the assistant are never stored.
 ## Run it
 
 ```bash
-pip install fastapi "uvicorn[standard]" sqlalchemy pytest httpx
+pip install -r requirements.txt
 uvicorn main:app --reload --port 8001
 ```
 
@@ -138,14 +148,52 @@ Open `http://127.0.0.1:8001/docs`, then use **POST /assistant/ask**:
 The response contains `kind` (`answer`, `emergency`, `crisis`, `refused`, `concern` or `no_source`),
 the `answer`, and the `sources` used.
 
-### Optional: let an LLM rewrite the answers
+### Optional: connect a language model (Ollama or Anthropic)
+
+Everything below is **off by default**. With no model configured the assistant works exactly
+as before. When a model is configured it does four jobs, each fenced in by code:
+
+| Step | What the model does | What stops it going wrong |
+|---|---|---|
+| Safety net | Re-reads each message for emergencies or crises the keyword rules missed (Pidgin, Yoruba, Hausa, Igbo, misspellings) | Runs only after the keyword rules, and can only **escalate**. Failure means "no opinion". |
+| Note selector | Picks which guidance note fits, or "none" (fixes "nurse" vs "health worker", and the snake-bite false match) | Must return a real note id; the symptom check still applies. |
+| Rewrite | Puts the note in short, simple words | Discarded if it has a dose, a diagnosis, a number not in the note, or no `[n]` citation. The note itself is shown instead. |
+| Symptom reader | Reads free text (any of those languages) into symptom codes for the log | Can only **add** entries; unknown codes are dropped; warning rules are plain code. |
+
+**Ollama** (no extra Python package needed):
 
 ```bash
-pip install anthropic
-export ANTHROPIC_API_KEY="your-key"
+export OLLAMA_MODEL="llama3.1:8b"          # any model you have pulled, or a cloud model name
+# Ollama cloud only:
+export OLLAMA_API_KEY="..."                 # keep this in your shell or a .env file, never in git or chat
+# Your own Ollama server elsewhere (default is http://localhost:11434, or https://ollama.com with a key):
+# export OLLAMA_HOST="http://192.168.1.20:11434"
 ```
 
-Without a key the assistant still works and returns the guidance note directly.
+**Anthropic**: `pip install anthropic`, `export ANTHROPIC_API_KEY=...` (optional `ASSISTANT_MODEL`,
+`ASSISTANT_FAST_MODEL`). Force one with `ASSISTANT_PROVIDER=ollama|anthropic`.
+
+Other settings: `ASSISTANT_TIMEOUT` (seconds per call, default 10), `ASSISTANT_RATE_LIMIT`
+(model-assisted questions per minute per IP, default 30; **over the limit the assistant still
+answers, just without the model**), `ASSISTANT_LOCAL_LANGUAGES=1` (let the rewrite answer in
+Pidgin, Hausa, Yoruba or Igbo; **off by default** because those texts have not been reviewed).
+
+**Privacy.** With a cloud model, the text of a question or symptom note leaves your server.
+A local Ollama keeps it on your machine. Neither the questions nor the symptom text are stored
+by MamaCare. Decide this before real mothers use the app, and check it against the NDPA.
+
+**Honest status.** These calls were written without access to the live services. They are
+tested with fake models and a fake local Ollama server (`tests/test_ai_layer.py`,
+`tests/test_llm_providers.py`). Small local models follow JSON and "use only these notes"
+instructions less reliably than large ones; the checks in code make failures safe, but
+expect more fall-backs to the plain note. Measure it on your setup:
+
+```bash
+python evaluation/run_eval.py --ai -v
+```
+
+The `local` group in `evaluation/questions.json` holds five **draft** Pidgin cases that need a
+Pidgin speaker or nurse to confirm before you trust them.
 
 ### Tests and evaluation
 
@@ -161,7 +209,8 @@ assistant/
   __init__.py     the Assistant class: the flow above
   safety.py       crisis / emergency / refusal rules and fixed messages
   retrieval.py    BM25 search over the guidance notes
-  llm.py          optional LLM step (grounded prompt)
+  llm.py          optional model steps: Ollama / Anthropic providers, prompts, JSON parsing
+  symptoms.py     symptom log: keyword reader, model merge, fixed warning rules
   knowledge/      the guidance notes, one .md file each, with their source
 ai_routes.py      FastAPI endpoints /assistant/ask and /assistant/sources
 evaluation/       labelled questions and the evaluation script

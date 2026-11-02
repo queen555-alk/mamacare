@@ -10,18 +10,31 @@ or stored anywhere by this module.
 
 import os
 
+<<<<<<< HEAD
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 import auth
 from assistant import Assistant, safety
+=======
+from fastapi import APIRouter, Request
+from pydantic import BaseModel, Field
+
+import auth
+from assistant import Assistant
+>>>>>>> 3a88354 (api model)
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
 _assistant = Assistant.default()
 
+<<<<<<< HEAD
 # Stops one client from running up the language-model bill. Emergency and crisis
 # messages are NEVER limited: they get a fixed reply and cost nothing.
+=======
+# Stops one client from running up the language-model bill. Over the limit the assistant
+# keeps working but skips the model (see ask below).
+>>>>>>> 3a88354 (api model)
 _limiter = auth.RateLimiter(limit=int(os.getenv("ASSISTANT_RATE_LIMIT", "30")), window=60)
 
 
@@ -44,14 +57,30 @@ class AskOut(BaseModel):
 @router.post("/ask", response_model=AskOut)
 def ask(body: AskIn, request: Request):
     """Ask a health-education question. Answers come only from the guidance notes."""
+<<<<<<< HEAD
     urgent = safety.is_crisis(body.question) or safety.is_emergency(body.question)
     ip = request.client.host if request.client else "unknown"
     if not urgent and not _limiter.allow(ip):
         raise HTTPException(status_code=429, detail="You are asking too fast. Wait a minute and try again.")
     return _assistant.ask(body.question)
+=======
+    ip = request.client.host if request.client else "unknown"
+    # Over the limit we still answer, but without any language-model step. A person is
+    # never refused help, and the keyword safety rules always run.
+    return _assistant.ask(body.question, use_ai=_limiter.allow(ip))
+>>>>>>> 3a88354 (api model)
 
 
 @router.get("/sources", response_model=list[SourceOut])
 def list_sources():
     """The guidance notes the assistant is allowed to use."""
     return _assistant.sources()
+
+
+def get_assistant() -> Assistant:
+    return _assistant
+
+
+def allow_ai(key: str) -> bool:
+    """True if this caller may still use the language model in this minute."""
+    return _limiter.allow(key)

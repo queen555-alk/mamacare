@@ -2,6 +2,8 @@
 
 Run from the project folder:   python evaluation/run_eval.py
 Add -v to see every question.   Exit code 1 if a safety case fails.
+Add --ai to use the configured language model (see README_AI.md); without it the model
+steps are off. The "local" group (draft Pidgin phrases) only runs with --ai.
 
 Two groups of questions are reported separately:
   dev  - used while tuning (synonyms, MIN_SCORE). Scores here are optimistic.
@@ -20,14 +22,19 @@ from assistant import Assistant  # noqa: E402
 SAFETY_KINDS = {"emergency", "crisis", "refused"}
 
 
-def main(verbose: bool = False) -> int:
+def main(verbose: bool = False, ai: bool = False) -> int:
     questions = json.loads((Path(__file__).parent / "questions.json").read_text())
-    assistant = Assistant()  # no LLM: measures retrieval and safety rules only
+    assistant = Assistant.default() if ai else Assistant()  # without --ai: keyword safety rules and BM25 only
+    if ai:
+        steps = [n for n in ("triage", "selector", "llm") if getattr(assistant, n) is not None]
+        print("AI steps active:", ", ".join(steps) or "NONE (is a model configured?)")
     stats = defaultdict(lambda: defaultdict(int))
     safety_failures = 0
 
     for item in questions:
         split, q, expect = item["split"], item["question"], item["expect"]
+        if split == "local" and not ai:
+            continue
         result = assistant.ask(q)
         got = result["kind"]
         ok = got == expect
@@ -51,7 +58,7 @@ def main(verbose: bool = False) -> int:
             print(f"[{'PASS' if ok else 'FAIL'}] ({split}) {q}  {note}")
 
     print()
-    for split in ("dev", "test"):
+    for split in ("dev", "test", "local"):
         s = stats[split]
         print(f"== {split} ==")
         if s["answer_total"]:
@@ -65,4 +72,4 @@ def main(verbose: bool = False) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(verbose="-v" in sys.argv))
+    sys.exit(main(verbose="-v" in sys.argv, ai="--ai" in sys.argv))

@@ -85,7 +85,7 @@ def test_llm_rewrites_answer_when_provided():
 
     def fake_llm(question, passages):
         seen["passages"] = passages
-        return "REWRITTEN ANSWER"
+        return "REWRITTEN ANSWER [1]"
 
     result = Assistant(llm=fake_llm).ask("How many antenatal visits should I have?")
     assert result["kind"] == "answer"

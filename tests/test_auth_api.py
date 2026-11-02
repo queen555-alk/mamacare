@@ -25,6 +25,10 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 import ai_routes  # noqa: E402
 import auth  # noqa: E402
+<<<<<<< HEAD
+=======
+from assistant import Assistant, safety  # noqa: E402
+>>>>>>> 3a88354 (api model)
 import main  # noqa: E402
 import models  # noqa: E402
 from database import Base, get_db  # noqa: E402
@@ -249,6 +253,7 @@ def test_home_page_and_health_check(client):
 
 # ------------------------------------------------- assistant rate limiting ---
 
+<<<<<<< HEAD
 def test_assistant_is_rate_limited_but_emergencies_never_are(client, monkeypatch):
     monkeypatch.setattr(ai_routes, "_limiter", auth.RateLimiter(limit=3, window=60))
     ok = [client.post("/assistant/ask", json={"question": "How many antenatal visits should I have?"}).status_code for _ in range(4)]
@@ -258,3 +263,98 @@ def test_assistant_is_rate_limited_but_emergencies_never_are(client, monkeypatch
         assert r.status_code == 200 and r.json()["kind"] == "emergency"
     r = client.post("/assistant/ask", json={"question": "I want to end my life"})
     assert r.status_code == 200 and r.json()["kind"] == "crisis"
+=======
+def test_over_the_limit_the_assistant_still_answers_but_without_the_model(client, monkeypatch):
+    calls = []
+
+    def fake_llm(question, passages):
+        calls.append(1)
+        return "At least eight visits are advised [1]."
+
+    monkeypatch.setattr(ai_routes, "_assistant", Assistant(llm=fake_llm))
+    monkeypatch.setattr(ai_routes, "_limiter", auth.RateLimiter(limit=2, window=60))
+    ask = lambda q: client.post("/assistant/ask", json={"question": q})
+    answers = [ask("How many antenatal visits should I have?") for _ in range(4)]
+    assert [r.status_code for r in answers] == [200, 200, 200, 200]   # nobody is ever refused
+    assert len(calls) == 2                                           # the model ran only twice
+    assert "At least eight visits are advised." in answers[0].json()["answer"]
+    assert "eight antenatal contacts" in answers[3].json()["answer"]  # plain note once limited
+    assert ask("I am bleeding heavily").json()["kind"] == "emergency"
+    assert ask("I want to end my life").json()["kind"] == "crisis"
+
+
+# ------------------------------------------------------- symptom logging ---
+
+def log(client, resp, text):
+    mid = resp.json()["mother"]["id"]
+    return client.post(f"/mothers/{mid}/symptoms", json={"text": text}, headers=bearer(resp))
+
+
+def test_symptom_logging_needs_the_mothers_own_token(client):
+    a, b = register(client, phone="0803 000 0001"), register(client, phone="0803 000 0002")
+    a_id = a.json()["mother"]["id"]
+    assert client.post(f"/mothers/{a_id}/symptoms", json={"text": "headache"}).status_code == 401
+    assert client.post(f"/mothers/{a_id}/symptoms", json={"text": "headache"}, headers=bearer(b)).status_code == 403
+    assert client.get(f"/mothers/{a_id}/symptoms", headers=bearer(b)).status_code == 403
+
+
+def test_everyday_symptoms_are_saved_and_listed(client):
+    r = register(client)
+    out = log(client, r, "I have a mild headache and some nausea").json()
+    assert {e["symptom"] for e in out["entries"]} == {"headache", "nausea"}
+    assert out["alert"]["level"] == "ok"
+    mid = r.json()["mother"]["id"]
+    listed = client.get(f"/mothers/{mid}/symptoms", headers=bearer(r)).json()
+    assert {x["symptom"] for x in listed} == {"headache", "nausea"} and listed[0]["label"]
+
+
+def test_a_danger_sign_gets_the_emergency_warning(client):
+    out = log(client, register(client), "there is blood in my underwear").json()
+    assert out["alert"]["level"] == "urgent" and out["alert"]["message"] == safety.EMERGENCY_MESSAGE
+    assert out["entries"][0]["symptom"] == "bleeding"
+
+
+def test_a_crisis_message_gets_support_and_nothing_is_saved(client, Session):
+    out = log(client, register(client), "I want to end my life").json()
+    assert out["alert"]["level"] == "crisis" and out["entries"] == []
+    assert Session().query(models.SymptomLog).count() == 0
+
+
+def test_the_typed_text_is_never_stored(client, Session):
+    log(client, register(client), "my private secret headache note")
+    assert "text" not in models.SymptomLog.__table__.columns
+    row = Session().query(models.SymptomLog).one()
+    assert "secret" not in " ".join(str(getattr(row, c.name)) for c in row.__table__.columns)
+
+
+def test_a_symptom_on_three_days_in_a_week_prompts_a_mention(client, Session):
+    r = register(client)
+    mid = r.json()["mother"]["id"]
+    db = Session()
+    for days_ago in (1, 3):
+        db.add(models.SymptomLog(mother_id=mid, logged_at=auth.utcnow() - timedelta(days=days_ago), symptom="nausea", severity="mild"))
+    db.commit()
+    assert log(client, r, "feeling nauseous again").json()["alert"]["level"] == "mention"
+
+
+def test_model_detected_emergency_without_keywords_is_urgent_and_saves_nothing(client, Session, monkeypatch):
+    monkeypatch.setattr(ai_routes, "_assistant", Assistant(triage=lambda q: "emergency"))
+    out = log(client, register(client), "belle dey pain me well well").json()
+    assert out["alert"]["level"] == "urgent" and out["entries"] == []
+
+
+def test_model_reading_of_symptoms_is_used_but_only_when_not_rate_limited(client, monkeypatch):
+    fake = Assistant(symptom_parser=lambda text: [{"symptom": "dizziness", "severity": "mild"}, {"symptom": "nonsense"}])
+    monkeypatch.setattr(ai_routes, "_assistant", fake)
+    r = register(client)
+    assert [e["symptom"] for e in log(client, r, "ori mi n yi").json()["entries"]] == ["dizziness"]
+    monkeypatch.setattr(ai_routes, "_limiter", auth.RateLimiter(limit=0, window=60))
+    assert log(client, r, "ori mi n yi").json()["entries"] == []
+
+
+def test_erasing_a_mother_removes_her_symptom_log(client, Session):
+    r = register(client)
+    log(client, r, "headache")
+    client.delete(f"/mothers/{r.json()['mother']['id']}", headers=bearer(r))
+    assert Session().query(models.SymptomLog).count() == 0
+>>>>>>> 3a88354 (api model)

@@ -247,3 +247,36 @@ def symptom_terms(question: str) -> set[str]:
 def unsafe_llm_text(text: str) -> bool:
     """True if a language-model answer contains a dose or sounds like a diagnosis."""
     return bool(_DOSE_IN_TEXT.search(text) or _DIAGNOSING.search(text))
+<<<<<<< HEAD
+=======
+
+
+# ------------------------------------------------ checking language-model text ---
+
+_NUMBER_WORDS = {
+    "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7",
+    "eight": "8", "nine": "9", "ten": "10", "eleven": "11", "twelve": "12",
+}
+
+
+def check_grounded(text: str, passages: list[str], question: str = "") -> str | None:
+    """Accept a language-model answer only if it looks grounded in the passages.
+
+    It must cite at least one passage as [n] (and only passages that exist), and every
+    number in it must already appear in the passages or the question (digits, or the
+    word form such as "eight"). Returns the text with the [n] markers removed, or None
+    to reject it. Conservative on purpose: when rejected, the note itself is used.
+    """
+    marks = [int(m) for m in re.findall(r"\[(\d+)\]", text)]
+    if not marks or any(not 1 <= m <= len(passages) for m in marks):
+        return None
+    source = " ".join(passages + [question]).lower()
+    allowed = set(re.findall(r"\d+(?:\.\d+)?", source))
+    allowed |= {digit for word, digit in _NUMBER_WORDS.items() if re.search(rf"\b{word}\b", source)}
+    body = re.sub(r"\[\d+\]", "", text)
+    if any(n not in allowed for n in re.findall(r"\d+(?:\.\d+)?", body)):
+        return None
+    cleaned = re.sub(r"\s*\[\d+\]", "", text)
+    return re.sub(r"[ \t]+", " ", cleaned).strip()
+
+>>>>>>> 3a88354 (api model)

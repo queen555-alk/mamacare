@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -7,8 +8,21 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+=======
+from datetime import date, datetime, time, timedelta
+from pathlib import Path
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+import ai_routes
+>>>>>>> 3a88354 (api model)
 import auth
 import models
+from assistant import safety, symptoms
 from database import Base, engine, get_db
 
 Base.metadata.create_all(bind=engine)
@@ -92,6 +106,13 @@ class AuthOut(BaseModel):
     mother: MotherOut
 
 
+<<<<<<< HEAD
+=======
+class SymptomIn(BaseModel):
+    text: str = Field(min_length=3, max_length=500)
+
+
+>>>>>>> 3a88354 (api model)
 class AppointmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -300,7 +321,11 @@ def delete_mother(
     mother = db.get(models.Mother, mother_id)
     if mother is None:
         raise HTTPException(status_code=404, detail="Mother not found")
+<<<<<<< HEAD
     for model in (models.AuthSession, models.Credential, models.Appointment):
+=======
+    for model in (models.AuthSession, models.Credential, models.Appointment, models.SymptomLog):
+>>>>>>> 3a88354 (api model)
         db.query(model).filter(model.mother_id == mother_id).delete()
     db.delete(mother)
     db.commit()
@@ -338,6 +363,74 @@ def mother_appointments(
         .order_by(models.Appointment.due_date)
         .all()
     )
+
+
+@app.post("/mothers/{mother_id}/symptoms")
+def log_symptoms(
+    mother_id: int,
+    body: SymptomIn,
+    authorization: str | None = Header(default=None),
+    x_staff_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Describe how you feel in your own words. We save only the symptoms we recognise
+    (never the text), and reply with a fixed-rule warning level."""
+    authorize(db, mother_id, authorization, x_staff_key)
+    if db.get(models.Mother, mother_id) is None:
+        raise HTTPException(status_code=404, detail="Mother not found")
+
+    assistant = ai_routes.get_assistant()
+    use_ai = ai_routes.allow_ai(f"mother:{mother_id}")
+    urgency = assistant.urgency(body.text, use_ai)
+    if urgency == "crisis":
+        return {"entries": [], "alert": {"level": "crisis", "message": safety.CRISIS_MESSAGE}}
+
+    found = symptoms.parse(body.text, assistant.symptom_parser if use_ai else None)
+    today = date.today()
+    window_start = datetime.combine(today - timedelta(days=symptoms.MENTION_WINDOW_DAYS), time.min)
+    history = [
+        (row.symptom, row.logged_at.date())
+        for row in db.query(models.SymptomLog).filter(
+            models.SymptomLog.mother_id == mother_id, models.SymptomLog.logged_at >= window_start
+        )
+    ]
+    alert = symptoms.assess(found, history, today)
+    if urgency == "emergency" and alert["level"] != "urgent":
+        alert = {"level": "urgent", "message": safety.EMERGENCY_MESSAGE}
+
+    now = auth.utcnow()
+    for item in found:
+        db.add(models.SymptomLog(mother_id=mother_id, logged_at=now, symptom=item["symptom"], severity=item["severity"]))
+    db.commit()
+    return {
+        "entries": [{**item, "label": symptoms.label(item["symptom"])} for item in found],
+        "alert": alert,
+    }
+
+
+@app.get("/mothers/{mother_id}/symptoms")
+def list_symptoms(
+    mother_id: int,
+    days: int = Query(default=14, ge=1, le=60),
+    authorization: str | None = Header(default=None),
+    x_staff_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    authorize(db, mother_id, authorization, x_staff_key)
+    if db.get(models.Mother, mother_id) is None:
+        raise HTTPException(status_code=404, detail="Mother not found")
+    since = datetime.combine(date.today() - timedelta(days=days), time.min)
+    rows = (
+        db.query(models.SymptomLog)
+        .filter(models.SymptomLog.mother_id == mother_id, models.SymptomLog.logged_at >= since)
+        .order_by(models.SymptomLog.logged_at.desc(), models.SymptomLog.id.desc())
+        .all()
+    )
+    return [
+        {"id": r.id, "symptom": r.symptom, "label": symptoms.label(r.symptom),
+         "severity": r.severity, "logged_at": r.logged_at.isoformat()}
+        for r in rows
+    ]
 
 
 @app.post("/appointments/{appointment_id}/done", response_model=AppointmentOut)

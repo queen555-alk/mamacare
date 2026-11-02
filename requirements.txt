@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+# for the tests
+pytest
+httpx
+# optional: only if you use Anthropic models (Ollama needs nothing extra)
+# anthropic

@@ -142,6 +142,10 @@ nav button[aria-current="page"]::before { content: ""; position: absolute; top: 
 nav button { position: relative; }
 
 .sourcelist { margin: 8px 0 0; padding-left: 18px; }
+<<<<<<< HEAD
+=======
+textarea { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); resize: vertical; font: inherit; color: inherit; }
+>>>>>>> 3a88354 (api model)
 .check { display: flex; gap: 12px; align-items: center; min-height: 48px; padding: 6px 0; border-top: 1px solid var(--line); font-weight: 400; margin: 0; cursor: pointer; }
 .check:first-of-type { border-top: 0; }
 .check input { width: 24px; height: 24px; flex: none; accent-color: var(--plum); }
@@ -247,7 +251,11 @@ async function api(path, options = {}) {
       }
     } catch { /* keep default */ }
     if (res.status === 401 && sess && !path.startsWith("/auth/")) {
+<<<<<<< HEAD
       clearSession(); state.mother = null; state.appts = []; state.chat = [];
+=======
+      clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null;
+>>>>>>> 3a88354 (api model)
       state.notice = "Your session has ended. Sign in again."; state.authMode = "signin";
       queueMicrotask(render);
     }
@@ -270,6 +278,11 @@ const state = {
   asking: false,
   notes: null,         // guidance note list for the Ask tab
   tool: null,          // {lmp, due, visits} or {error}
+<<<<<<< HEAD
+=======
+  symptoms: [],        // last 14 days of logged symptoms
+  symResult: null,     // reply to the latest symptom note
+>>>>>>> 3a88354 (api model)
   authMode: "signup",  // "signup" | "signin"
   notice: null,
 };
@@ -305,6 +318,10 @@ async function loadMother() {
     try {
       state.mother = await api(`/mothers/${encodeURIComponent(sess.id)}`);
       state.appts = await api(`/mothers/${state.mother.id}/appointments`);
+<<<<<<< HEAD
+=======
+      await loadSymptoms(state.mother);
+>>>>>>> 3a88354 (api model)
     } catch (e) {
       if ([401, 403, 404].includes(e.status)) { clearSession(); state.mother = null; state.appts = []; }
       else state.loadError = e.message;
@@ -383,6 +400,58 @@ function lateVisits() {
   return state.appts.filter(a => !a.done && parseDate(a.due_date) < t);
 }
 
+<<<<<<< HEAD
+=======
+const SYM_TITLES = { urgent: "Go to a health facility now", crisis: "Please reach out today", soon: "Speak to a health worker today", mention: "Tell your health worker", ok: "Saved" };
+const SYM_CLASS = { urgent: "emergency", crisis: "emergency", soon: "concern", mention: "concern", ok: "" };
+
+async function loadSymptoms(m) {
+  try { state.symptoms = await api(`/mothers/${m.id}/symptoms`); } catch { /* keep what we had */ }
+}
+
+function symResultView(r) {
+  const lvl = r.alert.level, none = !r.entries.length && lvl === "ok";
+  return h("div", { class: `reply ${SYM_CLASS[lvl] || ""}`, style: "margin:12px 0 0" },
+    h("h3", {}, none ? "No symptom recognised" : SYM_TITLES[lvl] || "Saved"),
+    r.entries.length ? h("p", { class: "small" }, "Noted: ", r.entries.map(e => `${e.label} (${e.severity})`).join(", ")) : null,
+    h("div", { class: "text" }, none
+      ? "I could not pick out a symptom from that. Try words like headache, nausea, back pain or dizziness. If something worries you, speak to a health worker."
+      : r.alert.message),
+    lvl === "urgent" || lvl === "crisis" ? h("a", { class: "btn block", href: "tel:112" }, "Call 112") : null);
+}
+
+function symptomHistory() {
+  if (!state.symptoms.length) return null;
+  const byDay = new Map();
+  for (const s of state.symptoms) {
+    const day = new Date(s.logged_at + "Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(`${s.label} (${s.severity})`);
+  }
+  return h("details", { id: "sym-history", style: "margin-top:12px" },
+    h("summary", {}, `Last 14 days (${state.symptoms.length} noted)`),
+    [...byDay].map(([day, items]) => h("p", { class: "small", style: "margin:6px 0" }, h("b", {}, `${day}: `), items.join(", "))));
+}
+
+function symptomCard(m) {
+  const input = h("textarea", { id: "sym-text", rows: 3, maxlength: 500, "aria-label": "How are you feeling today?", placeholder: "For example: I have a headache and my back hurts" });
+  const out = h("div", { id: "sym-out", "aria-live": "polite" }, state.symResult ? symResultView(state.symResult) : null);
+  const btn = h("button", { class: "btn block", type: "submit" }, "Save symptoms");
+  const form = h("form", { class: "stack", onsubmit: async ev => {
+    ev.preventDefault();
+    const text = input.value.trim();
+    if (text.length < 3) { out.replaceChildren(errorBox("Write a few words about how you feel.")); return; }
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      state.symResult = await post(`/mothers/${m.id}/symptoms`, { text });
+      await loadSymptoms(m);
+      render();
+    } catch (e) { out.replaceChildren(errorBox(e.message)); btn.disabled = false; btn.textContent = "Save symptoms"; }
+  }}, input, h("div", { class: "hint" }, "Write in your own words. We keep only the symptoms we recognise, not your message."), btn);
+  return h("div", { class: "card", id: "symptoms" }, h("h3", {}, "How are you feeling today?"), form, out, symptomHistory());
+}
+
+>>>>>>> 3a88354 (api model)
 function prepCard(m) {
   const done = new Set(getPrep(m.id));
   const total = PREP_ITEMS.length;
@@ -446,6 +515,10 @@ function homeView() {
     nodes.push(h("div", { class: "alert ok" }, "All your listed visits are done. Well done."));
   }
 
+<<<<<<< HEAD
+=======
+  nodes.push(symptomCard(m));
+>>>>>>> 3a88354 (api model)
   if (weeks >= 28) nodes.push(prepCard(m));
 
   nodes.push(h("div", { class: "card" },
@@ -456,7 +529,11 @@ function homeView() {
   nodes.push(h("div", { style: "text-align:center" },
     h("button", { class: "linkbtn", onclick: async () => {
       try { await post("/auth/logout", {}); } catch { /* sign out on this phone regardless */ }
+<<<<<<< HEAD
       clearSession(); state.mother = null; state.appts = []; state.chat = []; state.authMode = "signin"; state.notice = null; render();
+=======
+      clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null; state.authMode = "signin"; state.notice = null; render();
+>>>>>>> 3a88354 (api model)
     }}, "Sign out"),
     h("br"),
     h("button", { class: "linkbtn", style: "color:var(--danger)", onclick: async () => {
@@ -464,7 +541,11 @@ function homeView() {
       try {
         await api(`/mothers/${m.id}`, { method: "DELETE" });
         store(() => localStorage.removeItem(prepKey(m.id)));
+<<<<<<< HEAD
         clearSession(); state.mother = null; state.appts = []; state.chat = []; state.authMode = "signup";
+=======
+        clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null; state.authMode = "signup";
+>>>>>>> 3a88354 (api model)
         state.notice = "Your data has been deleted."; render();
       } catch (e) { alert(e.message); }
     }}, "Delete my data")));
@@ -607,7 +688,11 @@ function toolsView() {
 }
 
 /* ---------- shell ---------- */
+<<<<<<< HEAD
 function go(tab) { state.tab = tab; render(); window.scrollTo({ top: 0 }); }
+=======
+function go(tab) { if (tab !== state.tab) state.symResult = null; state.tab = tab; render(); window.scrollTo({ top: 0 }); }
+>>>>>>> 3a88354 (api model)
 
 function render() {
   document.querySelectorAll("nav button").forEach(b => {

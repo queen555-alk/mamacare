@@ -49,3 +49,18 @@ class AuthSession(Base):
     mother_id: Mapped[int] = mapped_column(ForeignKey("mothers.id"), index=True)
     token_hash: Mapped[str] = mapped_column(unique=True, index=True)
     expires_at: Mapped[datetime]
+<<<<<<< HEAD
+=======
+
+
+class SymptomLog(Base):
+    """One symptom a mother reported. The text she typed is deliberately NOT stored."""
+
+    __tablename__ = "symptom_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    mother_id: Mapped[int] = mapped_column(ForeignKey("mothers.id"), index=True)
+    logged_at: Mapped[datetime]
+    symptom: Mapped[str]
+    severity: Mapped[str]
+>>>>>>> 3a88354 (api model)
