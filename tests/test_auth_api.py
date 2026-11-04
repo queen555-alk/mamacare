@@ -25,10 +25,7 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 import ai_routes  # noqa: E402
 import auth  # noqa: E402
-<<<<<<< HEAD
-=======
 from assistant import Assistant, safety  # noqa: E402
->>>>>>> 3a88354 (api model)
 import main  # noqa: E402
 import models  # noqa: E402
 from database import Base, get_db  # noqa: E402
@@ -253,17 +250,6 @@ def test_home_page_and_health_check(client):
 
 # ------------------------------------------------- assistant rate limiting ---
 
-<<<<<<< HEAD
-def test_assistant_is_rate_limited_but_emergencies_never_are(client, monkeypatch):
-    monkeypatch.setattr(ai_routes, "_limiter", auth.RateLimiter(limit=3, window=60))
-    ok = [client.post("/assistant/ask", json={"question": "How many antenatal visits should I have?"}).status_code for _ in range(4)]
-    assert ok == [200, 200, 200, 429]
-    for _ in range(10):
-        r = client.post("/assistant/ask", json={"question": "I am bleeding heavily"})
-        assert r.status_code == 200 and r.json()["kind"] == "emergency"
-    r = client.post("/assistant/ask", json={"question": "I want to end my life"})
-    assert r.status_code == 200 and r.json()["kind"] == "crisis"
-=======
 def test_over_the_limit_the_assistant_still_answers_but_without_the_model(client, monkeypatch):
     calls = []
 
@@ -357,4 +343,3 @@ def test_erasing_a_mother_removes_her_symptom_log(client, Session):
     log(client, r, "headache")
     client.delete(f"/mothers/{r.json()['mother']['id']}", headers=bearer(r))
     assert Session().query(models.SymptomLog).count() == 0
->>>>>>> 3a88354 (api model)

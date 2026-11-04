@@ -1,14 +1,3 @@
-<<<<<<< HEAD
-from datetime import date, timedelta
-from pathlib import Path
-
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
-
-=======
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
@@ -19,7 +8,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import ai_routes
->>>>>>> 3a88354 (api model)
 import auth
 import models
 from assistant import safety, symptoms
@@ -106,13 +94,10 @@ class AuthOut(BaseModel):
     mother: MotherOut
 
 
-<<<<<<< HEAD
-=======
 class SymptomIn(BaseModel):
     text: str = Field(min_length=3, max_length=500)
 
 
->>>>>>> 3a88354 (api model)
 class AppointmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -321,11 +306,7 @@ def delete_mother(
     mother = db.get(models.Mother, mother_id)
     if mother is None:
         raise HTTPException(status_code=404, detail="Mother not found")
-<<<<<<< HEAD
-    for model in (models.AuthSession, models.Credential, models.Appointment):
-=======
     for model in (models.AuthSession, models.Credential, models.Appointment, models.SymptomLog):
->>>>>>> 3a88354 (api model)
         db.query(model).filter(model.mother_id == mother_id).delete()
     db.delete(mother)
     db.commit()

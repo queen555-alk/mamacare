@@ -91,9 +91,6 @@ message is now at `/health`). Start the app, then open `http://127.0.0.1:8001/` 
 phone or in a browser. Tabs: **Home** (sign-up, week and trimester ring, due date, next
 visit), **Visits** (mark visits done, overdue flags), **Ask** (the assistant, with a red
 "Call 112" card for emergency and crisis replies), **Due date** (calculator that needs no
-<<<<<<< HEAD
-sign-up). From week 28 the Home tab also shows a **Get ready for the birth** checklist. Its seven
-=======
 sign-up). The Home tab has a **How are you feeling today?** card: she writes in her own words, we
 keep only the symptoms recognised (never the text), and fixed rules reply with a warning level
 (danger sign: go to a facility now; severe or fever: speak to a health worker today; the same
@@ -101,7 +98,6 @@ symptom on 3 days in a week: mention it at the next visit). Endpoints: `POST` an
 /mothers/{id}/symptoms`. The rules in `assistant/symptoms.py` are drafts for a clinician to review.
 
 From week 28 the Home tab also shows a **Get ready for the birth** checklist. Its seven
->>>>>>> 3a88354 (api model)
 items come straight from the "Preparing for delivery" guidance note; ticks are saved on the
 phone only and erased when the mother deletes her data.
 

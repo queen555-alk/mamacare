@@ -49,8 +49,6 @@ class AuthSession(Base):
     mother_id: Mapped[int] = mapped_column(ForeignKey("mothers.id"), index=True)
     token_hash: Mapped[str] = mapped_column(unique=True, index=True)
     expires_at: Mapped[datetime]
-<<<<<<< HEAD
-=======
 
 
 class SymptomLog(Base):
@@ -63,4 +61,3 @@ class SymptomLog(Base):
     logged_at: Mapped[datetime]
     symptom: Mapped[str]
     severity: Mapped[str]
->>>>>>> 3a88354 (api model)

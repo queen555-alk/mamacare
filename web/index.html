@@ -142,10 +142,7 @@ nav button[aria-current="page"]::before { content: ""; position: absolute; top: 
 nav button { position: relative; }
 
 .sourcelist { margin: 8px 0 0; padding-left: 18px; }
-<<<<<<< HEAD
-=======
 textarea { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); resize: vertical; font: inherit; color: inherit; }
->>>>>>> 3a88354 (api model)
 .check { display: flex; gap: 12px; align-items: center; min-height: 48px; padding: 6px 0; border-top: 1px solid var(--line); font-weight: 400; margin: 0; cursor: pointer; }
 .check:first-of-type { border-top: 0; }
 .check input { width: 24px; height: 24px; flex: none; accent-color: var(--plum); }
@@ -251,11 +248,7 @@ async function api(path, options = {}) {
       }
     } catch { /* keep default */ }
     if (res.status === 401 && sess && !path.startsWith("/auth/")) {
-<<<<<<< HEAD
-      clearSession(); state.mother = null; state.appts = []; state.chat = [];
-=======
       clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null;
->>>>>>> 3a88354 (api model)
       state.notice = "Your session has ended. Sign in again."; state.authMode = "signin";
       queueMicrotask(render);
     }
@@ -278,11 +271,8 @@ const state = {
   asking: false,
   notes: null,         // guidance note list for the Ask tab
   tool: null,          // {lmp, due, visits} or {error}
-<<<<<<< HEAD
-=======
   symptoms: [],        // last 14 days of logged symptoms
   symResult: null,     // reply to the latest symptom note
->>>>>>> 3a88354 (api model)
   authMode: "signup",  // "signup" | "signin"
   notice: null,
 };
@@ -318,10 +308,7 @@ async function loadMother() {
     try {
       state.mother = await api(`/mothers/${encodeURIComponent(sess.id)}`);
       state.appts = await api(`/mothers/${state.mother.id}/appointments`);
-<<<<<<< HEAD
-=======
       await loadSymptoms(state.mother);
->>>>>>> 3a88354 (api model)
     } catch (e) {
       if ([401, 403, 404].includes(e.status)) { clearSession(); state.mother = null; state.appts = []; }
       else state.loadError = e.message;
@@ -400,8 +387,6 @@ function lateVisits() {
   return state.appts.filter(a => !a.done && parseDate(a.due_date) < t);
 }
 
-<<<<<<< HEAD
-=======
 const SYM_TITLES = { urgent: "Go to a health facility now", crisis: "Please reach out today", soon: "Speak to a health worker today", mention: "Tell your health worker", ok: "Saved" };
 const SYM_CLASS = { urgent: "emergency", crisis: "emergency", soon: "concern", mention: "concern", ok: "" };
 
@@ -451,7 +436,6 @@ function symptomCard(m) {
   return h("div", { class: "card", id: "symptoms" }, h("h3", {}, "How are you feeling today?"), form, out, symptomHistory());
 }
 
->>>>>>> 3a88354 (api model)
 function prepCard(m) {
   const done = new Set(getPrep(m.id));
   const total = PREP_ITEMS.length;
@@ -515,10 +499,7 @@ function homeView() {
     nodes.push(h("div", { class: "alert ok" }, "All your listed visits are done. Well done."));
   }
 
-<<<<<<< HEAD
-=======
   nodes.push(symptomCard(m));
->>>>>>> 3a88354 (api model)
   if (weeks >= 28) nodes.push(prepCard(m));
 
   nodes.push(h("div", { class: "card" },
@@ -529,11 +510,7 @@ function homeView() {
   nodes.push(h("div", { style: "text-align:center" },
     h("button", { class: "linkbtn", onclick: async () => {
       try { await post("/auth/logout", {}); } catch { /* sign out on this phone regardless */ }
-<<<<<<< HEAD
-      clearSession(); state.mother = null; state.appts = []; state.chat = []; state.authMode = "signin"; state.notice = null; render();
-=======
       clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null; state.authMode = "signin"; state.notice = null; render();
->>>>>>> 3a88354 (api model)
     }}, "Sign out"),
     h("br"),
     h("button", { class: "linkbtn", style: "color:var(--danger)", onclick: async () => {
@@ -541,11 +518,7 @@ function homeView() {
       try {
         await api(`/mothers/${m.id}`, { method: "DELETE" });
         store(() => localStorage.removeItem(prepKey(m.id)));
-<<<<<<< HEAD
-        clearSession(); state.mother = null; state.appts = []; state.chat = []; state.authMode = "signup";
-=======
         clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null; state.authMode = "signup";
->>>>>>> 3a88354 (api model)
         state.notice = "Your data has been deleted."; render();
       } catch (e) { alert(e.message); }
     }}, "Delete my data")));
@@ -688,11 +661,7 @@ function toolsView() {
 }
 
 /* ---------- shell ---------- */
-<<<<<<< HEAD
-function go(tab) { state.tab = tab; render(); window.scrollTo({ top: 0 }); }
-=======
 function go(tab) { if (tab !== state.tab) state.symResult = null; state.tab = tab; render(); window.scrollTo({ top: 0 }); }
->>>>>>> 3a88354 (api model)
 
 function render() {
   document.querySelectorAll("nav button").forEach(b => {

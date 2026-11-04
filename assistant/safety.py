@@ -247,8 +247,6 @@ def symptom_terms(question: str) -> set[str]:
 def unsafe_llm_text(text: str) -> bool:
     """True if a language-model answer contains a dose or sounds like a diagnosis."""
     return bool(_DOSE_IN_TEXT.search(text) or _DIAGNOSING.search(text))
-<<<<<<< HEAD
-=======
 
 
 # ------------------------------------------------ checking language-model text ---
@@ -279,4 +277,3 @@ def check_grounded(text: str, passages: list[str], question: str = "") -> str | 
     cleaned = re.sub(r"\s*\[\d+\]", "", text)
     return re.sub(r"[ \t]+", " ", cleaned).strip()
 
->>>>>>> 3a88354 (api model)

@@ -1,14 +1,6 @@
 """MamaCare health-education assistant.
 
 Flow for every question:
-<<<<<<< HEAD
-  1. Safety rules (crisis, emergency, diagnosis/medicine requests): fixed replies.
-  2. Retrieval: find the best guidance notes.
-  3. If nothing matches well enough: say "I don't have a reliable source", or,
-     if the person describes a symptom, tell them to see a health worker today.
-  4. Otherwise answer from the notes (optionally rewritten by an LLM), with sources.
-     An LLM answer that contains a dose or sounds like a diagnosis is discarded.
-=======
   1. Keyword safety rules: crisis, emergency. Fixed replies, no AI.
   2. AI safety net (optional): a model re-reads the message and may ESCALATE to crisis
      or emergency. It can never cancel step 1 or make a reply less cautious.
@@ -23,18 +15,13 @@ Flow for every question:
 
 Every AI step is a plain callable that may be None, and any failure in one is logged and
 skipped. `use_ai=False` switches all of them off for a single call.
->>>>>>> 3a88354 (api model)
 """
 
 import logging
 from pathlib import Path
 
 from . import safety
-<<<<<<< HEAD
-from .llm import make_llm
-=======
 from .llm import build_ai
->>>>>>> 3a88354 (api model)
 from .retrieval import BM25Index, load_documents, tokenize
 
 log = logging.getLogger("mamacare.assistant")
@@ -123,9 +110,6 @@ class Assistant:
             return {"kind": "refused", "answer": safety.REFUSAL_MESSAGE, "sources": []}
 
         symptomatic = safety.mentions_symptom(question)
-<<<<<<< HEAD
-        hits = [(d, s) for d, s in self.retrieve(question, 3) if s >= self.min_score]
-=======
         scored = self.retrieve(question, 3)
         hits = [(d, s) for d, s in scored if s >= self.min_score]
 
@@ -140,7 +124,6 @@ class Assistant:
                     hits = [(chosen, max(score, self.min_score))]
             # None or an unknown id: keep the keyword-search result
 
->>>>>>> 3a88354 (api model)
         if symptomatic:
             # A personal symptom must not be answered by a note that never mentions it.
             terms = {t.lower() for t in safety.symptom_terms(question)}
@@ -154,16 +137,6 @@ class Assistant:
         used = [d for d, s in hits if s >= 0.6 * best_score]
 
         text = None
-<<<<<<< HEAD
-        if self.llm is not None:
-            try:
-                text = self.llm(question, [d.text for d in used]) or None
-                if text and safety.unsafe_llm_text(text):
-                    log.warning("LLM answer rejected by safety check; using the note")
-                    text = None
-            except Exception:  # network, quota, anything: fall back safely
-                log.exception("LLM call failed; using the guidance note directly")
-=======
         if use_ai and self.llm is not None:
             passages = [d.text for d in used]
             draft = self._safe(self.llm, question, passages) or None
@@ -174,7 +147,6 @@ class Assistant:
                     text = safety.check_grounded(draft, passages, question)
                     if text is None:
                         log.warning("Model answer rejected: not grounded in the notes")
->>>>>>> 3a88354 (api model)
         if text is None:
             text = best_doc.text
             used = [best_doc]
