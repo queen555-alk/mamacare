@@ -258,7 +258,7 @@ async function api(path, options = {}) {
       }
     } catch { /* keep default */ }
     if (res.status === 401 && sess && !path.startsWith("/auth/")) {
-      clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null;
+      clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null; state.editLmp = false; state.flash = null;
       state.notice = "Your session has ended. Sign in again."; state.authMode = "signin";
       queueMicrotask(render);
     }
@@ -285,6 +285,9 @@ const state = {
   symResult: null,     // reply to the latest symptom note
   authMode: "signup",  // "signup" | "signin"
   notice: null,
+  editLmp: false,      // the 'edit last period date' form is open
+  lmpError: null,
+  flash: null,         // one-off confirmation on Home
 };
 
 /* ---------- pregnancy maths ---------- */
@@ -519,6 +522,37 @@ function prepCard(m) {
     h("button", { class: "btn ghost small", style: "margin-top:10px", onclick: () => { go("ask"); ask("How should I prepare for delivery?"); } }, "Read about labour and delivery"));
 }
 
+/* Correct the last period date. The server moves the due date and every saved visit. */
+function lmpCard(m) {
+  const today = startOfToday();
+  if (!state.editLmp) {
+    return h("div", { class: "card" },
+      h("h3", {}, "Your last period date"),
+      h("p", {}, `First day: ${fmt(parseDate(m.lmp_date))}`),
+      h("p", { class: "muted" }, "Entered it wrongly? You can correct it. Your due date and visit dates will be recalculated."),
+      h("button", { class: "btn ghost small", id: "edit-lmp", onclick: () => { state.editLmp = true; state.lmpError = null; state.flash = null; render(); } }, "Edit last period date"));
+  }
+  const input = h("input", { id: "new-lmp", type: "date", required: true, value: m.lmp_date, max: toISO(today), min: toISO(addDays(today, -294)) });
+  const save = h("button", { class: "btn small", type: "submit", id: "save-lmp" }, "Save and recalculate");
+  const form = h("form", { onsubmit: async ev => {
+    ev.preventDefault();
+    if (!input.value) { state.lmpError = "Choose the first day of your last period."; render(); return; }
+    save.disabled = true;
+    try {
+      state.mother = await api(`/mothers/${m.id}/lmp`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lmp_date: input.value }) });
+      state.appts = await api(`/mothers/${m.id}/appointments`);
+      state.editLmp = false; state.lmpError = null;
+      state.flash = `Saved. Your new due date is ${fmt(parseDate(state.mother.due_date))}. Visits already marked done stay done.`;
+    } catch (e) { state.lmpError = e.message; }
+    render();
+  }},
+    h("label", { for: "new-lmp" }, "First day of your last period"), input,
+    errorBox(state.lmpError),
+    h("div", { class: "row", style: "display:flex;gap:10px;margin-top:12px" }, save,
+      h("button", { class: "btn ghost small", type: "button", id: "cancel-lmp", onclick: () => { state.editLmp = false; state.lmpError = null; render(); } }, "Cancel")));
+  return h("div", { class: "card" }, h("h3", {}, "Edit last period date"), form);
+}
+
 function homeView() {
   const m = state.mother;
   const { days, weeks, rem } = progress(m.lmp_date);
@@ -529,6 +563,7 @@ function homeView() {
   const next = nextVisit();
   const nodes = [];
 
+  if (state.flash) nodes.push(h("div", { class: "alert ok", role: "status", id: "flash" }, state.flash));
   if (late.length) nodes.push(h("div", { class: "alert err", role: "alert" },
     h("b", {}, `${plural(late.length, "visit")} overdue. `), "Go to your health centre as soon as you can. ",
     h("button", { class: "linkbtn", onclick: () => go("visits") }, "See visits")));
@@ -563,6 +598,8 @@ function homeView() {
   if (weeks >= 16) nodes.push(movesCard(m));
   if (weeks >= 28) nodes.push(prepCard(m));
 
+  nodes.push(lmpCard(m));
+
   nodes.push(h("div", { class: "card" },
     h("h3", {}, "Know the danger signs"),
     h("p", { class: "muted" }, "Some symptoms need a health facility straight away. Read them before you need them."),
@@ -571,7 +608,7 @@ function homeView() {
   nodes.push(h("div", { style: "text-align:center" },
     h("button", { class: "linkbtn", onclick: async () => {
       try { await post("/auth/logout", {}); } catch { /* sign out on this phone regardless */ }
-      clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null; state.authMode = "signin"; state.notice = null; render();
+      clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null; state.editLmp = false; state.flash = null; state.authMode = "signin"; state.notice = null; render();
     }}, "Sign out"),
     h("br"),
     h("button", { class: "linkbtn", style: "color:var(--danger)", onclick: async () => {
@@ -580,7 +617,7 @@ function homeView() {
         await api(`/mothers/${m.id}`, { method: "DELETE" });
         store(() => localStorage.removeItem(prepKey(m.id)));
         store(() => localStorage.removeItem(movesKey(m.id)));
-        clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null; state.authMode = "signup";
+        clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null; state.editLmp = false; state.flash = null; state.authMode = "signup";
         state.notice = "Your data has been deleted."; render();
       } catch (e) { alert(e.message); }
     }}, "Delete my data")));
@@ -767,7 +804,7 @@ function toolsView() {
 }
 
 /* ---------- shell ---------- */
-function go(tab) { if (tab !== state.tab) state.symResult = null; state.tab = tab; render(); window.scrollTo({ top: 0 }); }
+function go(tab) { if (tab !== state.tab) state.symResult = null; state.editLmp = false; state.flash = null; state.tab = tab; render(); window.scrollTo({ top: 0 }); }
 
 function render() {
   document.querySelectorAll("nav button").forEach(b => {

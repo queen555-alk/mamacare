@@ -222,3 +222,14 @@ ai_routes.py      FastAPI endpoints /assistant/ask and /assistant/sources
 evaluation/       labelled questions and the evaluation script
 tests/            unit tests
 ```
+
+## Editing the last period date
+
+A mother can correct a wrongly entered last period date from the Home tab ("Edit last period date"),
+or a health worker can do it with the staff key: `PATCH /mothers/{id}/lmp` with `{"lmp_date": "YYYY-MM-DD"}`.
+The same rules as registration apply (not in the future, not more than 42 weeks ago).
+
+What changes: the due date, and the date of every visit she already has. A visit marked done stays done.
+Nothing is deleted, so a visit that becomes overdue after a correction is shown as overdue rather than hidden.
+Visits she did not have are added only if their new date is today or later.
+The date rules live in `pregnancy.py` (plain Python, tested in `tests/test_pregnancy.py`).

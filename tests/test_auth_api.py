@@ -343,3 +343,42 @@ def test_erasing_a_mother_removes_her_symptom_log(client, Session):
     log(client, r, "headache")
     client.delete(f"/mothers/{r.json()['mother']['id']}", headers=bearer(r))
     assert Session().query(models.SymptomLog).count() == 0
+
+
+# ------------------------------------------------------------ edit last period date ---
+
+def test_editing_the_lmp_moves_the_due_date_and_visits_and_keeps_done_visits(client):
+    r = register(client)
+    mid, h = r.json()["mother"]["id"], bearer(r)
+    first = client.get(f"/mothers/{mid}/appointments", headers=h).json()[0]
+    client.post(f"/appointments/{first['id']}/done", headers=h)
+    new_lmp = date.today() - timedelta(weeks=6)
+    resp = client.patch(f"/mothers/{mid}/lmp", json={"lmp_date": new_lmp.isoformat()}, headers=h)
+    assert resp.status_code == 200
+    assert resp.json()["lmp_date"] == new_lmp.isoformat()
+    assert resp.json()["due_date"] == (new_lmp + timedelta(days=280)).isoformat()
+    appts = client.get(f"/mothers/{mid}/appointments", headers=h).json()
+    by_visit = {a["visit_number"]: a for a in appts}
+    assert len(appts) == len(by_visit) == 8                    # visit 1 is now ahead of her, so it is added
+    assert by_visit[1]["due_date"] == (new_lmp + timedelta(weeks=12)).isoformat()
+    assert by_visit[2]["due_date"] == (new_lmp + timedelta(weeks=20)).isoformat()
+    done = [a for a in appts if a["done"]]
+    assert [a["id"] for a in done] == [first["id"]]            # still marked done, not duplicated
+
+
+def test_editing_the_lmp_rejects_future_and_ancient_dates(client):
+    r = register(client)
+    mid, h = r.json()["mother"]["id"], bearer(r)
+    for bad in (date.today() + timedelta(days=1), date.today() - timedelta(days=400)):
+        assert client.patch(f"/mothers/{mid}/lmp", json={"lmp_date": bad.isoformat()}, headers=h).status_code == 422
+    assert client.get(f"/mothers/{mid}", headers=h).json()["lmp_date"] == lmp_weeks_ago()
+
+
+def test_editing_the_lmp_needs_to_be_that_mother_or_staff(client):
+    a = register(client, phone="0803 000 0001", name="Mother A")
+    b = register(client, phone="0803 000 0002", name="Mother B")
+    b_id = b.json()["mother"]["id"]
+    body = {"lmp_date": lmp_weeks_ago(8)}
+    assert client.patch(f"/mothers/{b_id}/lmp", json=body).status_code == 401
+    assert client.patch(f"/mothers/{b_id}/lmp", json=body, headers=bearer(a)).status_code == 403
+    assert client.patch(f"/mothers/{b_id}/lmp", json=body, headers=bearer(b)).status_code == 200

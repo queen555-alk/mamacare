@@ -12,6 +12,8 @@ import auth
 import models
 from assistant import safety, symptoms
 from database import Base, engine, get_db
+from pregnancy import (ANTENATAL_WEEKS, antenatal_schedule, estimated_due_date,  # noqa: F401
+                       plan_resync, validate_lmp)
 
 Base.metadata.create_all(bind=engine)
 
@@ -23,13 +25,7 @@ login_limiter = auth.RateLimiter(limit=20, window=600)
 
 # ------------------------------------------------------------------ schemas ---
 
-def _lmp_must_be_plausible(v: date) -> date:
-    today = date.today()
-    if v > today:
-        raise ValueError("LMP date cannot be in the future")
-    if today - v > timedelta(days=294):
-        raise ValueError("LMP date is more than 42 weeks ago; please check it")
-    return v
+_lmp_must_be_plausible = validate_lmp
 
 
 class RegisterIn(BaseModel):
@@ -110,24 +106,6 @@ class AppointmentOut(BaseModel):
 
 
 # -------------------------------------------------------------- pregnancy maths ---
-
-def estimated_due_date(lmp: date) -> date:
-    return lmp + timedelta(days=280)
-
-
-ANTENATAL_WEEKS = [12, 20, 26, 30, 34, 36, 38, 40]
-
-
-def antenatal_schedule(lmp: date) -> list:
-    visits = []
-    for number, weeks in enumerate(ANTENATAL_WEEKS, start=1):
-        visits.append({
-            "visit": number,
-            "week": weeks,
-            "date": lmp + timedelta(weeks=weeks),
-        })
-    return visits
-
 
 # ------------------------------------------------------------------- access ---
 
@@ -311,6 +289,44 @@ def delete_mother(
     db.delete(mother)
     db.commit()
     return {"deleted": True}
+
+
+class LmpIn(BaseModel):
+    lmp_date: date
+
+    @field_validator("lmp_date")
+    @classmethod
+    def lmp_is_plausible(cls, v: date) -> date:
+        return validate_lmp(v)
+
+
+@app.patch("/mothers/{mother_id}/lmp", response_model=MotherOut)
+def update_lmp(
+    mother_id: int,
+    body: LmpIn,
+    authorization: str | None = Header(default=None),
+    x_staff_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Correct the last period date. Moves the due date and every saved visit; visits
+    already marked done stay done and nothing is deleted."""
+    authorize(db, mother_id, authorization, x_staff_key)
+    mother = db.get(models.Mother, mother_id)
+    if mother is None:
+        raise HTTPException(status_code=404, detail="Mother not found")
+    mother.lmp_date = body.lmp_date
+    mother.due_date = estimated_due_date(body.lmp_date)
+    existing = {a.visit_number: a for a in
+                db.query(models.Appointment).filter(models.Appointment.mother_id == mother_id)}
+    plan = plan_resync(set(existing), body.lmp_date)
+    for number, new_date in plan["update"].items():
+        existing[number].due_date = new_date
+    for visit in plan["create"]:
+        db.add(models.Appointment(mother_id=mother_id, visit_number=visit["visit"],
+                                  week=visit["week"], due_date=visit["date"]))
+    db.commit()
+    db.refresh(mother)
+    return mother
 
 
 @app.get("/mothers/{mother_id}/schedule")
