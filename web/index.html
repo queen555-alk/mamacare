@@ -142,6 +142,16 @@ nav button[aria-current="page"]::before { content: ""; position: absolute; top: 
 nav button { position: relative; }
 
 .sourcelist { margin: 8px 0 0; padding-left: 18px; }
+.moves-count { font-size: 3rem; line-height: 1; font-weight: 800; font-variant-numeric: tabular-nums; text-align: center; }
+.moves-label { text-align: center; color: var(--muted); font-size: .9rem; margin: 2px 0 12px; }
+.moves-tap { min-height: 64px; font-size: 1.1rem; }
+.moves-chart { display: flex; gap: 6px; align-items: flex-end; height: 96px; margin-top: 14px; }
+.moves-chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; font-size: .75rem; color: var(--muted); }
+.moves-chart .col b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.moves-chart .bar { width: 100%; max-width: 28px; min-height: 3px; border-radius: 6px 6px 0 0; background: var(--plum-soft); margin: 2px 0; }
+.moves-chart .col.today .bar { background: var(--leaf); }
+.moves-chart .col.today { color: var(--ink); font-weight: 700; }
+@media (prefers-reduced-motion: no-preference) { .moves-chart .bar { transition: height .25s ease; } }
 textarea { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); resize: vertical; font: inherit; color: inherit; }
 .check { display: flex; gap: 12px; align-items: center; min-height: 48px; padding: 6px 0; border-top: 1px solid var(--line); font-weight: 400; margin: 0; cursor: pointer; }
 .check:first-of-type { border-top: 0; }
@@ -436,6 +446,56 @@ function symptomCard(m) {
   return h("div", { class: "card", id: "symptoms" }, h("h3", {}, "How are you feeling today?"), form, out, symptomHistory());
 }
 
+/* Baby movement tally. Kept on this phone only, one record per mother, last 14 days. */
+const movesKey = id => `mamacare.moves.${id}`;
+const getMoves = id => store(() => JSON.parse(localStorage.getItem(movesKey(id))) || {}, {});
+function saveMoves(id, data) {
+  const out = {};
+  const oldest = toISO(addDays(startOfToday(), -13));   // ISO dates compare correctly as text
+  Object.keys(data).filter(k => k >= oldest).sort().forEach(k => { out[k] = data[k]; });
+  store(() => localStorage.setItem(movesKey(id), JSON.stringify(out)));
+}
+
+function movesCard(m) {
+  const data = getMoves(m.id);
+  const keyOf = d => toISO(d);
+  const count = h("div", { class: "moves-count", id: "moves-count", "aria-live": "polite" });
+  const chart = h("div", { class: "moves-chart", id: "moves-chart", role: "img" });
+  const undo = h("button", { class: "linkbtn", id: "moves-undo", type: "button" }, "Undo last tap");
+  const refresh = () => {
+    const today = startOfToday();
+    const n = data[keyOf(today)] || 0;
+    count.textContent = String(n);
+    undo.disabled = n === 0;
+    const days = [6, 5, 4, 3, 2, 1, 0].map(i => addDays(today, -i));
+    const counts = days.map(d => data[keyOf(d)] || 0);
+    const top = Math.max(1, ...counts);
+    chart.setAttribute("aria-label", "Movements felt in the last 7 days: " + counts.join(", "));
+    chart.replaceChildren(...days.map((d, i) => h("div", { class: `col${i === 6 ? " today" : ""}` },
+      h("b", {}, counts[i] || ""),
+      h("div", { class: "bar", style: `height:${Math.round((counts[i] / top) * 64)}px` }),
+      h("span", {}, d.toLocaleDateString("en-GB", { weekday: "short" })))));
+  };
+  const tap = h("button", { class: "btn block moves-tap", id: "moves-tap", type: "button", onclick: () => {
+    const k = keyOf(startOfToday());
+    data[k] = (data[k] || 0) + 1;
+    saveMoves(m.id, data); refresh();
+    if (navigator.vibrate) navigator.vibrate(20);
+  }}, "I felt a movement");
+  undo.addEventListener("click", () => {
+    const k = keyOf(startOfToday());
+    if ((data[k] || 0) > 0) { data[k] -= 1; saveMoves(m.id, data); refresh(); }
+  });
+  refresh();
+  return h("div", { class: "card", id: "moves" },
+    h("h3", {}, "Baby movements"),
+    count, h("div", { class: "moves-label" }, "movements felt today"),
+    tap, h("div", { style: "text-align:center" }, undo), chart,
+    h("div", { class: "alert warn", style: "margin:14px 0 0" },
+      "If your baby is moving much less than usual, or you have not felt any movement, do not wait. Go to a health facility the same day."),
+    h("p", { class: "hint" }, "This tally is only a record for you and your health worker. It is kept on this phone."));
+}
+
 function prepCard(m) {
   const done = new Set(getPrep(m.id));
   const total = PREP_ITEMS.length;
@@ -500,6 +560,7 @@ function homeView() {
   }
 
   nodes.push(symptomCard(m));
+  if (weeks >= 16) nodes.push(movesCard(m));
   if (weeks >= 28) nodes.push(prepCard(m));
 
   nodes.push(h("div", { class: "card" },
@@ -518,11 +579,52 @@ function homeView() {
       try {
         await api(`/mothers/${m.id}`, { method: "DELETE" });
         store(() => localStorage.removeItem(prepKey(m.id)));
+        store(() => localStorage.removeItem(movesKey(m.id)));
         clearSession(); state.mother = null; state.appts = []; state.chat = []; state.symptoms = []; state.symResult = null; state.authMode = "signup";
         state.notice = "Your data has been deleted."; render();
       } catch (e) { alert(e.message); }
     }}, "Delete my data")));
   return nodes;
+}
+
+/* Calendar export: a .ics file built on this phone. Nothing is uploaded. */
+const icsEscape = t => t.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+function icsFold(line) {            // lines may be at most 75 bytes; continuations start with a space
+  const enc = new TextEncoder();
+  if (enc.encode(line).length <= 75) return line;
+  const out = []; let cur = "", bytes = 0;
+  for (const ch of line) {
+    const b = enc.encode(ch).length;
+    if (bytes + b > 75) { out.push(cur); cur = " "; bytes = 1; }
+    cur += ch; bytes += b;
+  }
+  out.push(cur);
+  return out.join("\r\n");
+}
+function buildICS(mother, visits) {
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  const day = iso => iso.replaceAll("-", "");
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MamaCare//Antenatal visits//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"];
+  for (const v of visits) {
+    lines.push("BEGIN:VEVENT",
+      `UID:mamacare-${mother.id}-visit-${v.visit_number}@mamacare`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${day(v.due_date)}`,
+      `DTEND;VALUE=DATE:${day(toISO(addDays(parseDate(v.due_date), 1)))}`,
+      `SUMMARY:${icsEscape(`Antenatal visit ${v.visit_number} (week ${v.week})`)}`,
+      `DESCRIPTION:${icsEscape("MamaCare reminder. Take your antenatal card with you. If you notice a danger sign, do not wait for this visit: go to a health facility.")}`,
+      "TRANSP:TRANSPARENT",
+      "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Antenatal visit tomorrow", "TRIGGER:-PT15H", "END:VALARM",
+      "END:VEVENT");
+  }
+  lines.push("END:VCALENDAR");
+  return lines.map(icsFold).join("\r\n") + "\r\n";
+}
+function downloadICS(mother, visits) {
+  const url = URL.createObjectURL(new Blob([buildICS(mother, visits)], { type: "text/calendar;charset=utf-8" }));
+  const a = h("a", { href: url, download: "mamacare-visits.ics" });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function visitsView() {
@@ -553,6 +655,10 @@ function visitsView() {
           catch (e) { ev.target.disabled = false; alert(e.message); }
         }}, "Mark as done")));
   });
+  const upcoming = state.appts.filter(a => !a.done && parseDate(a.due_date) >= t);
+  if (upcoming.length) nodes.push(h("div", { class: "card" },
+    h("button", { class: "btn ghost block", id: "cal-btn", onclick: () => downloadICS(m, upcoming) }, "Add my visits to my calendar"),
+    h("div", { class: "hint" }, `Saves ${plural(upcoming.length, "upcoming visit")} to a file your phone's calendar can open, with a reminder at 9am the day before. The file is made on this phone and not uploaded.`)));
   nodes.push(h("div", { class: "card" }, rows.length ? rows : h("p", { class: "muted" }, "No visits to show. All earlier visits fell before you signed up.")));
   return nodes;
 }

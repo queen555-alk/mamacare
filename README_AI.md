@@ -91,7 +91,17 @@ message is now at `/health`). Start the app, then open `http://127.0.0.1:8001/` 
 phone or in a browser. Tabs: **Home** (sign-up, week and trimester ring, due date, next
 visit), **Visits** (mark visits done, overdue flags), **Ask** (the assistant, with a red
 "Call 112" card for emergency and crisis replies), **Due date** (calculator that needs no
-sign-up). The Home tab has a **How are you feeling today?** card: she writes in her own words, we
+sign-up). From week 16 the Home tab has a **Baby movements** tally: tap "I felt a movement" each time, with
+undo and the last 7 days as bars. It is a plain record kept on the phone only (erased with
+"Delete my data"). It deliberately shows **no "normal" count**; the only advice is the sentence from the
+"Baby movements in pregnancy" note (much less movement, or none: go to a health facility the same day).
+Adding counting thresholds would be new medical content and needs clinician review first.
+
+The Visits tab has **Add my visits to my calendar**: it builds an `.ics` file on the phone
+(all-day events for each upcoming visit, a reminder at 9am the day before, no name or phone
+number inside) that any phone calendar can open. Nothing is uploaded.
+
+The Home tab has a **How are you feeling today?** card: she writes in her own words, we
 keep only the symptoms recognised (never the text), and fixed rules reply with a warning level
 (danger sign: go to a facility now; severe or fever: speak to a health worker today; the same
 symptom on 3 days in a week: mention it at the next visit). Endpoints: `POST` and `GET
